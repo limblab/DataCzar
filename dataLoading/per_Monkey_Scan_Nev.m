@@ -23,8 +23,8 @@ function per_Monkey_Scan_Nev(monkeyName,directoryLocation,xmlFileName)
 docNode = com.mathworks.xml.XMLUtils.createDocument('perMonkeyMetaData');
 updateDate = docNode.createElement('UpdateInformation');
 docNode.getDocumentElement.appendChild(updateDate);
-expList = docNode.createElement(sprintf('%sExperimentList',monkeyName)); % create the node for the experiment list
-docNode.getDocumentElement.appendChild(expList); % add the node to the document
+monkList = docNode.createElement(monkeyName); % create the node for the experiment list
+docNode.getDocumentElement.appendChild(monkList); % add the node to the document
 
 
 %% call the recursive subfunction
@@ -37,13 +37,11 @@ docNode.getDocumentElement.appendChild(expList); % add the node to the document
 nevList = struct(...
     'BaseName',             '',...
     'Date',                 [],...
-    'FileTypes',            struct('Type',[],'FileLocn',[]),... % below, but if I do it now it makes this a 1x1 empty struct
+    'FileTypes',            struct('Type',[],'Location',[]),... % below, but if I do it now it makes this a 1x1 empty struct
     'Sorted',               false);
 
 nevList = find_Nev_Files(nevList,directoryLocation);
 
-
-keyboard
 
 %% load nevList structure into the xml DOM node
 
