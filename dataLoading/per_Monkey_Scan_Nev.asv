@@ -40,14 +40,13 @@ nevList = struct(...
     'BaseName',             '',...
     'Date',                 [],...
     'FileTypes',            struct('Type',[],'Location',[]),... % below, but if I do it now it makes this a 1x1 empty struct
-    'Sorted',               false,...
-    'Length',               0);
+    'Sorted',               false);
 
 nevList = find_Nev_Files(nevList,directoryLocation);
 
 
 %% load nevList structure into the xml DOM node
-docNode = loadNevList(docNode,nevList);
+
 
 
 
@@ -81,25 +80,21 @@ for ii = 1:length(localNevs) % for each nev
         nevList(baseExists).FileTypes(end+1).Location = [directoryLocation,filesep,localNevs(ii).name]; % file loc'n
         nevList(baseExists).FileTypes(end).Type = '.nev'; % we already know this - we're looking through nevs :)
         
-        if ~isempty(sortFlag) % look for sorted tags - defined above
+        if ~isempty(sortFlag) % look for sorted tags - a little restrictive, but I'm not sure what else to do at the moment
             nevList(baseExists).Sorted = true;
         end
     else
         nevList(end+1).BaseName = baseName; % tack on a new entry
-%         nevList(end).Date = localNevs(ii).date; % the storage date - that'll work for now, might change that later
-        currNEV = openNEV([directoryLocation,filesep,localNevs(ii)],'noread','nosave','nomat'); % opening the file to save associated info.
-        nevList(end).Date = currNEV.MetaTags.DateTime;
-        nevList(end).Length = currNev.MetaTags.DataDurationSec;
+        nevList(end).Date = localNevs(ii).date; % the storage date - that'll work for now, might change that later
         nevList(end).FileTypes.Type = '.nev'; % because it's a list of nevs
         nevList(end).FileTypes.Location = [directoryLocation,filesep,localNevs(ii).name]; % and the location
         
-        nevList(end).Sorted = false;
         if ~isempty(sortFlag)
             nevList(end).Sorted = true; % someone sorted it, or so I think...
         end
 %     end % the location of this end changes whether it looks for
 %     associated files only when adding a totally new entry, or for every
-%     nev. I'm going to go for only new entries for the moment
+%     nev. I'm going to go for only 
 
 
         matchingFiles = dir([directoryLocation,filesep,baseNameCopy,'*']); % find a matching list of different file types, making sure not r
@@ -151,7 +146,7 @@ for ii = 1:length(localNevs) % for each nev
             end
 
         end
-    end  % the location of this end changes when to look for matching files. look above for more info.
+
     
 end
 
@@ -166,20 +161,3 @@ end
 end
 
 
-
-
-
-%% docNode population
-% loads all of the nevList values into the docNode DOM object
-function docNode = loadNevList(docNode,nevList)
-    
-for ii = 1:length(nevList)
-    
-
-
-
-
-
-
-
-end
