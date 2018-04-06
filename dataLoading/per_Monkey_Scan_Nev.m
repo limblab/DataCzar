@@ -21,10 +21,12 @@ function per_Monkey_Scan_Nev(monkeyName,directoryLocation,xmlFileName)
 
 %% create the xml DOM object
 docNode = com.mathworks.xml.XMLUtils.createDocument('perMonkeyMetaData');
-updateDate = docNode.createElement('UpdateInformation');
-docNode.appendChild(updateDate);
-monkList = docNode.createElement(monkeyName); % create the node for the experiment list
-docNode.appendChild(monkList); % add the node to the document
+root = docNode.getDocumentElement;
+root.setAttribute('version','0.1');
+root.setAttribute('UpdateDate',datestr(now));
+monkList = docNode.createElement('monkey'); % create the node for the experiment list
+monkList.setAttribute('Name',monkeyName);
+root.appendChild(monkList); % add the node to the document
 dateList = monkList.createElement('dateList');
 monkList.appendChild(dateList);
 
@@ -172,9 +174,14 @@ end
 %% docNode population
 % loads all of the nevList values into the docNode DOM object
 function docNode = loadNevList(docNode,nevList)
-    
-for ii = 1:length(nevList)
-    
+
+keyboard
+
+% dateList = []; % make a list of all of the dates, to make it easier to compare with dates that we have
+% 
+% 
+% for ii = 1:length(nevList)
+%     
 
 
 
