@@ -1,4 +1,4 @@
-function recording_add_postgres(directory)
+function recording_add_postgres(directory,params)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % recording_add_postgres
 %
@@ -7,43 +7,51 @@ function recording_add_postgres(directory)
 % runs at a fixed interval checking for new recordings and adding them to
 % the db so that it's all easy to keep track.
 %
-% Currently this doesn't have any inputs or outputs, though I suspect in
+% Currently this doesn't have any outputs, though I suspect in
 % the future we might want to have some sort of error response if it
 % crashes or something. Maybe just an email to whoever's in charge? Dunno
 %
-% Also will need to set information like the monkey, the input directory,
-% and the array map file that was used during the recording. I'm not
-% totally sure how to do that, maybe some sort of settings file that it
-% checks against to run with lists of when each monkey had each array?
+% Currently the 
+
+%% credentials and connection settings
+% since we probably don't want this available in a public proc
+while ~exist('user','var')
+    [credFile,credpath] = uigetfile('*.mat','Load credentials file');
+    load([credpath,filesep,credFile]);
+end
+
+
+vendor = 'PostgreSQL';
+driver = 'org.postgresql.Driver';
 
 %% initiate connection with monkey and array settings server
 db = 'MonkeySettings';
-user = 'postgres';
-pass = 'postgres';
-vendor = 'PostgreSQL';
-driver = 'org.postgresql.Driver';
-% url = 'vfsmmillerdb.fsm.northwestern.edu'; To connect remotely to the server if we're not working on the
-% local host
 
-connSettings = database(db,user,pass,'Vendor',vendor);
+
+if exist('url','var') % on the server
+    connSettings = database(db,user,pass,'Vendor',vendor,'URL',url);
+else % local host
+    connSettings = database(db,user,pass,'Vendor',vendor);
+end
 
 
 %% Initiate connection with sessions server
 db = 'LLSessionsDB';
-user = 'postgres';
-pass = 'postgres';
-vendor = 'PostgreSQL';
-driver = 'org.postgresql.Driver';
-% url = 'vfsmmillerdb.fsm.northwestern.edu'; To connect remotely to the server if we're not working on the
-% local host
 
-
-connSessions = database(db,user,pass,'Vendor',vendor);
+if exist('url','var') % on the server
+    connSessions = database(db,user,pass,'Vendor',vendor,'url',url);
+else % local host
+    connSessions = database(db,user,pass,'Vendor',vendor);
+end
 
 %% start running through the current folder
 
 % change this to however we're wanting to set the base directory
-baseDir = directory;
+if exist('directory','var')
+    baseDir = directory;
+else
+    baseDir = uigetdir('.');
+end
 
 addNevs(connSessions,connSettings,baseDir);
 
@@ -60,7 +68,7 @@ end
 % subfunctions %
 % ----------------------------------------------------------------------- %
 
-%% recursive directory exploration function
+%% directory exploration function
 % looks through provided directory and subdirectories for nevs, nsx, etc
 function exceptionList = addNevs(connSessions, connSettings, directory)
 
@@ -128,12 +136,12 @@ for ii = 1:length(nevList) % for each nev
         % and we need to get rid of any apostraphes in the filename to
         % sanitize the input and allow it to be stored
         sourceFile = strsplit(sourceFile,'''');
-        sourceFile = strjoin(sourceFile,'''''');
+        sourceFile = strjoin(sourceFile,'_');
         duration = nev.MetaTags.DataDurationSec;
         
         % open related ns3 files, look for EMG and force
         ns3Name = [nevList(ii).folder,filesep,baseName,'.ns3']; % look for 2kHz recordings
-        hasEMG = false; haseForce = false; % setting the defaults
+        hasEMG = false; hasForce = false; % setting the defaults
         if exist(ns3Name,'file')
             ns3 = openNSx(ns3Name,'noread');
             hasEMG = any(regexpi([ns3.ElectrodesInfo.Label],'EMG')); % do we have any EMGs?
