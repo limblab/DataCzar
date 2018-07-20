@@ -22,7 +22,6 @@ end
 
 
 vendor = 'PostgreSQL';
-driver = 'org.postgresql.Driver';
 
 %% initiate connection with monkey and array settings server
 db = 'MonkeySettings';
@@ -39,7 +38,7 @@ end
 db = 'LLSessionsDB';
 
 if exist('url','var') % on the server
-    connSessions = database(db,user,pass,'Vendor',vendor,'url',url);
+    connSessions = database(db,user,pass,'Vendor',vendor,'Server',url);
 else % local host
     connSessions = database(db,user,pass,'Vendor',vendor);
 end
