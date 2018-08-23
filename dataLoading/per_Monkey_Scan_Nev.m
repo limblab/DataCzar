@@ -1,15 +1,22 @@
-function per_Monkey_Scan_Nev(monkeyName,directoryLocation,xmlFileName)
+function xmlDOM = per_Monkey_Scan_Nev(monkeyName,directoryLocation,varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% per_Monkey_Scan_Nev(monkeyName,directoryLocation)
+% per_Monkey_Scan_Nev(monkeyName,directoryLocation, ...)
 % 
-% scans through a directory for cerebus files (nev, nsx, etc)
+% scans through the current directory for cerebus files (nev, nsx, etc)
 % creates an xml DOM node for the monkey, and stores it into a file
-% xmlFileName
+% xmlFileName, then loads it into the xmlDOM to feed out.
 %
-%   Inputs:
+% This function searches recursively through all sub directories
+%
+% Inputs:
 %       monkeyName              : the name of the monkey, as a char array
 %       directoryLocation       : directory to scan as a char array
-%       xmlFileName             : save file
+%
+% Optional Inputs:
+%       xmlFileName             : save file, will attempt to load from this
+%                                   file if there is no xmlDOM input and it
+%                                   alread exists
+%       xmlDOM                  : input xmlDOM (if calling recursively)
 %
 %
 % ToDo:
@@ -19,59 +26,52 @@ function per_Monkey_Scan_Nev(monkeyName,directoryLocation,xmlFileName)
 %   - add capability to append previously stored xml files
 %
 
-%% create the xml DOM object
-docNode = com.mathworks.xml.XMLUtils.createDocument('perMonkeyMetaData');
-expList = docNode.createElement(sprintf('%sExperimentList',monkeyName)); % create the node for the experiment list
-docNode.getDocumentElement.appendChild(expList); % add the node to the document
+%% load all of the varargin
+% see whether we need to create a new xml node, or just load in a previous
+% one
+
+makeNode = true; % flag to make a new node. default == true
+xmlFile = ''; % to avoid errors when calling exist() later on
+for ii = 1:numel(varargin)
+    switch class(varargin{ii})
+        case 'org.apache.xerces.dom.DocumentImpl' % it's a java thing
+            docNode = varargin{ii};
+            makeNode = false;
+        case 'char'
+            xmlFile = varargin{ii};
+        otherwise
+            error('Optional input %i is not valid',ii);
+    end
+end
 
 
-%% call the recursive subfunction
-% function will dir() current folder, store any cerebus files into a
-% struct, and then call itself with any subfolders.
+%% create the xml DOM object as necessary
+if makeNode == true
+    if exist(xmlFile,'file') % is there a file to read from?
+        docNode = xmlread(xmlFile); % load the object
+    else % otherwise create one
+        docNode = com.mathworks.xml.XMLUtils.createDocument('monkeyMetaData'); % new document
+        monkeyList = docNode.createElement(sprintf('%sExperimentList',monkeyName)); % per monkey
+        docNode.getDocumentElement.appendChild(monkeyList); % tack it on
+        expList = monkeyList.createElement('experimentList'); % experiment section (vs array etc section)
+        monkeyList.getDocumentElement.appendChild(expList); % tack it on
+    end
+end
 
-% stores the date, which file types are available and where, and whether
-% there is a sorted file available.
-nevList = struct(...
-    'BaseName',             '',...
-    'Date',                 [],...
-    'FileTypes',            struct('Type','','Location',''),...
-    'Sorted',               false);
+%% take a look through the current folder
+d = dir(directoryLocation);
+d = d(3:end); % get rid of '.' and '..'
 
-nevList = find_Nev_Files(nevList,directoryLocation);
+directoryList = d([d.isdir]); % store the directories for recursion
+d = d(~[d.isdir]); % keep only files for dis part
 
 
 
 
-%% load nevList structure into the xml DOM node
+
 
 
 
 
 end
-
-
-
-%% directory exploration function
-% looks through provided directory for cerebus files, stores their location
-% into a struct, repeats for subfunctions, then returns the new nevList
-function nevList = find_Nev_Files(nevList,directoryLocation)
-
-% what's in the directory?
-D = dir(directoryLocation);
-D = D(3:end); % get rid of . and ..
-
-for ii = 1:length
-    fileSplit = strsplit(D(ii).name,'.');
-    fileExt = fileSplit{end};
-    if strcmp(fileExt,'nev')
-        if any(strcmp(strsplit([fileSplit{1:end-1}],'_'),{'sorted','001'})
-        
-        nevList.BaseName = [fileSplit{1:end-1}];
-        nevList.
-
-
-
-
-end
-
 
