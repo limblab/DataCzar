@@ -22,7 +22,7 @@ function varargout = cerebus_EMG_video_record(varargin)
 
 % Edit the above text to modify the response to help cerebus_EMG_video_record
 
-% Last Modified by GUIDE v2.5 05-Sep-2018 12:50:11
+% Last Modified by GUIDE v2.5 05-Sep-2018 16:14:05
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -55,6 +55,82 @@ function cerebus_EMG_video_record_OpeningFcn(hObject, eventdata, handles, vararg
 % Choose default command line output for cerebus_EMG_video_record
 handles.output = hObject;
 
+if ~isfield(handles,'connSessions');
+% dialog box for user and password
+    prompt = {'Username','Password'};
+    title = 'username to connect to server';
+    dims = [1 35];
+    definput = {'',''};
+    userPass = inputdlg(prompt,title,dims,definput);
+
+    % connect to the postgres database, store the handle for the DB in the gui
+    % handle
+    serverSettings = struct('vendor','PostgreSQL','db','LLSessionsDB',...
+        'url','vfsmmillerdb.fsm.northwestern.edu');
+    handles.connSessions = database(serverSettings.db,userPass{1},userPass{2},...
+        'Vendor',serverSettings.vendor,'Server',serverSettings.url);
+end
+
+% I have to do everything with the monkey names here, because the "handles"
+% handle is the last thing to be created (after all of the other create_fcn),
+% and I don't want to have multiple connections to the server hanging about.
+%
+% get the list of monkey names from the server
+sqlquery = ['SELECT name, ccm_id FROM general_info.monkeys;']; % get the monkey names 
+try
+    curs = exec(handles.connSessions,sqlquery); % try to execute the SQL statement, otherwise throw a (mild) fit
+    fetch(curs);
+catch ME
+    rethrow(ME);
+end
+
+% get the monkey names concatenated with the ccm_ID numbers
+monkeyNames = cell(1+size(curs.Data,1),1);
+monkeyNames{1} = 'Monkey Name'; % before selecting the monkey name
+for ii = 1:length(monkeyNames)-1
+    monkeyNames{ii+1} = strjoin(curs.Data(ii,:),', '); % join 'em
+end
+
+
+handles.MonkeyList.String = strjoin(monkeyNames,'\n');
+
+
+
+% same thing for the tasks.
+sqlquery = ['SELECT task_name FROM general_info.tasks;'];
+try
+    curs = exec(handles.connSessions,sqlquery); % try to execute the SQL statement, otherwise throw a (mild) fit
+    fetch(curs);
+catch ME
+    rethrow(ME);
+end
+
+if ~strcmp(curs.Data{1},'No Data')
+    taskNames = ['Task Names\n', strjoin(curs.Data,'\n')];
+else
+    taskNames = 'Task Names';
+    warning('Task Table doesn''t contain any data. You might want to fix that.')
+    handles.TaskList.Enable = 'off';
+end
+handles.TaskList.String = taskNames;
+
+
+
+% other settings to keep everything clean
+handles.CurrentMonkey = 'Monkey Name';
+handles.ValidMonkeySelected = false;
+handles.CurrentArray = 'Array Name';
+handles.ValidArraySelected = false;
+handles.CurrentTask = 'Task Name';
+handles.ValidTaskSelected = false;
+
+
+
+
+
+
+
+
 % Update handles structure
 guidata(hObject, handles);
 
@@ -81,6 +157,47 @@ function MonkeyList_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns MonkeyList contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from MonkeyList
+contents = cellstr(get(hObject,'String'));
+handles.CurrentMonkey = contents{get(hObject,'Value')};
+
+if ~strcmp(handles.CurrentMonkey,'Monkey Name') % only do this if we don't select the 'Monkey Name' option
+    monkeyID = strsplit(handles.CurrentMonkey, ', ');
+    monkeyID = monkeyID{2}; % get the ccm_id number of the selected monkey
+
+    % get the list of applicable arrays
+    sqlQuery = ['SELECT serial, implant_location, removal_date, monkey_id FROM general_info.arrays ',...
+        'WHERE (monkey_id = ''',monkeyID,''') AND (removal_date IS NULL);']; % SQL query for the arrays corresponding to the currently selected monkey
+    try
+        curs = exec(handles.connSessions,sqlQuery);
+        fetch(curs);
+    catch ME
+        rethrow(ME)
+    end
+    
+    if isempty(curs.Message) && ~strcmp(curs.Data{1},'No Data')
+        handles.ArrayList.Enable = 'on'; % turn on the array list drop down menu
+        arrayList = cell(size(curs.Data,1)+1,1);
+        arrayList{1} = 'Array Name';
+        for ii = 1:size(arrayList,1)-1
+            arrayList{ii+1} = strjoin(curs.Data(ii,1:2),', '); % only want the serial number and location, no need for the monkey name (we already know that)
+        end
+        handles.ArrayList.String = strjoin(arrayList,'\n');
+
+        handles.ValidMonkeySelected = true;
+    else
+        warning('Database doesn''t contain any arrays for this monkey')
+        handles.ArrayList.String = 'Array Name';
+        handles.ArrayList.Enable = 'off';
+    end
+    
+else
+    % keeping things clean in case we go back to 'monkey name'
+    handles.ArrayList.Enable = 'off';
+    handles.ValidMonkeySelected = false;
+end
+
+% it's not science if you don't write it down
+guidata(hObject,handles);
 
 
 % --- Executes during object creation, after setting all properties.
@@ -96,6 +213,8 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
+
+
 % --- Executes on selection change in TaskList.
 function TaskList_Callback(hObject, eventdata, handles)
 % hObject    handle to TaskList (see GCBO)
@@ -104,6 +223,23 @@ function TaskList_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns TaskList contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from TaskList
+% 
+% save the selected array into the data handle
+contents = cellstr(get(hObject,'String'))
+selectedArray = contents{get(hObject,'Value')};
+selectedArray = strsplit(selectedArray, ', ');
+
+% make sure that things are clean if we reselect 'Array Name'
+if ~strcmp(selectedArray,'Array Name')
+    handles.selectedArray = selectedArray{1};
+    handles.ValidArraySelected = true;
+else
+    handles.selectedArray = 'Array Name';
+    handles.ValidArraySelected = false;
+end
+
+
+guidata(hObject, handles)
 
 
 % --- Executes during object creation, after setting all properties.
@@ -129,6 +265,7 @@ function ArrayList_Callback(hObject, eventdata, handles)
 %        contents{get(hObject,'Value')} returns selected item from ArrayList
 
 
+
 % --- Executes during object creation, after setting all properties.
 function ArrayList_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to ArrayList (see GCBO)
@@ -140,6 +277,7 @@ function ArrayList_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+hObject.Enable = 'off'; % turn it off until we select the monkey
 
 
 
@@ -255,6 +393,15 @@ function RecTimeCheck_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of RecTimeCheck
+on = get(hObject,'Value');
+
+if on
+    handles.RecTimeEdit.Enable = 'on';
+else
+    handles.RecTimeEdit.Enable = 'off';
+end
+
+guidata(hObject,handles);
 
 
 
@@ -294,3 +441,4 @@ function WirelessCheck_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of WirelessCheck
+
