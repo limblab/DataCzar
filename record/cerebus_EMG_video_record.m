@@ -106,7 +106,7 @@ catch ME
 end
 
 if ~strcmp(curs.Data{1},'No Data')
-    taskNames = ['Task Names\n', strjoin(curs.Data,'\n')];
+    taskNames = [sprintf('Task Names\n'), strjoin(curs.Data,'\n')];
 else
     taskNames = 'Task Names';
     warning('Task Table doesn''t contain any data. You might want to fix that.')
@@ -186,13 +186,15 @@ if ~strcmp(handles.CurrentMonkey,'Monkey Name') % only do this if we don't selec
         handles.ValidMonkeySelected = true;
     else
         warning('Database doesn''t contain any arrays for this monkey')
-        handles.ArrayList.String = 'Array Name';
+        handles.ArrayList.Value = 1;
+%         handles.ArrayList.String = 'Array Name';
         handles.ArrayList.Enable = 'off';
     end
     
 else
     % keeping things clean in case we go back to 'monkey name'
     handles.ArrayList.Enable = 'off';
+    handles.ArrayList.Value = 1;
     handles.ValidMonkeySelected = false;
 end
 
@@ -225,17 +227,17 @@ function TaskList_Callback(hObject, eventdata, handles)
 %        contents{get(hObject,'Value')} returns selected item from TaskList
 % 
 % save the selected array into the data handle
-contents = cellstr(get(hObject,'String'))
-selectedArray = contents{get(hObject,'Value')};
-selectedArray = strsplit(selectedArray, ', ');
+contents = cellstr(get(hObject,'String'));
+selectedTask = contents{get(hObject,'Value')};
+selectedTask = strsplit(selectedTask, ', ');
 
 % make sure that things are clean if we reselect 'Array Name'
-if ~strcmp(selectedArray,'Array Name')
-    handles.selectedArray = selectedArray{1};
-    handles.ValidArraySelected = true;
+if ~strcmp(selectedTask,'Task Name')
+    handles.selectedTask = selectedTask{1};
+    handles.ValidTaskSelected = true;
 else
-    handles.selectedArray = 'Array Name';
-    handles.ValidArraySelected = false;
+    handles.selectedTask = 'Task Name';
+    handles.ValidTaskSelected = false;
 end
 
 
