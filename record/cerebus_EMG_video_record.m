@@ -44,6 +44,26 @@ end
 % End initialization code - DO NOT EDIT
 
 
+
+% ---- List of variables stored in the figure handle ----
+% This will keep things a little easier to keep track of in the long run.
+% 
+% Variable                  Description
+% ----------------------|-----------------------------------------------
+% connSessions              the handle for the postgres connection
+% ValidMonkeySelected       T/F selected a valid monkey. May remove...
+% ValidTaskSelected
+% ValidArraySelected
+% CurrentMonkey
+% CurrentArray
+% CurrentTask
+% RecordFolder              Directory where we're storing the recording
+% CerebusSettingsFile       .ccf file with the desired cerebus settings
+% 
+
+
+
+
 % --- Executes just before cerebus_EMG_video_record is made visible.
 function cerebus_EMG_video_record_OpeningFcn(hObject, eventdata, handles, varargin)
 % This function has no output args, see OutputFcn.
@@ -69,6 +89,13 @@ if ~isfield(handles,'connSessions');
         'url','vfsmmillerdb.fsm.northwestern.edu');
     handles.connSessions = database(serverSettings.db,userPass{1},userPass{2},...
         'Vendor',serverSettings.vendor,'Server',serverSettings.url);
+
+    % to let the user know if we can't find the JDBC driver
+    if strcmp(handles.connSessions.Message,'Unable to find JDBC driver.')
+        h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
+        uiwait(h);
+        doc JDBC;
+    end
 end
 
 % I have to do everything with the monkey names here, because the "handles"
@@ -123,6 +150,8 @@ handles.CurrentArray = 'Array Name';
 handles.ValidArraySelected = false;
 handles.CurrentTask = 'Task Name';
 handles.ValidTaskSelected = false;
+handles.CerebusSettingsFile = '';
+handles.RecordFolder = '';
 
 
 
@@ -280,6 +309,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 hObject.Enable = 'off'; % turn it off until we select the monkey
+guidata(hObject,handles); % store everything
 
 
 
@@ -336,6 +366,8 @@ function FolderEdit_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of FolderEdit as text
 %        str2double(get(hObject,'String')) returns contents of FolderEdit as a double
+handles.RecordFolder = hObject.String;
+guidata(hObject,handles);
 
 
 % --- Executes during object creation, after setting all properties.
@@ -351,12 +383,20 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on button press in BrowseButton.
+% --- Executes on button press in BrowseButton. - This is for the record
+% folder
 function BrowseButton_Callback(hObject, eventdata, handles)
 % hObject    handle to BrowseButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+handles.RecordFolder = uigetdir('.','Recording storage directory'); % find a directory
+if ~exist(handles.RecordFolder,'dir');
+    warning('This is not a valid directory location'); % does it exist. Probably not necessary, but whatevs.
+end
+
+handles.FolderEdit.String = handles.RecordFolder; % put it in the textbox too
+guidata(hObject,handles); % beam me up scotty
 
 
 function SettingsEdit2_Callback(hObject, eventdata, handles)
@@ -366,6 +406,8 @@ function SettingsEdit2_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of SettingsEdit2 as text
 %        str2double(get(hObject,'String')) returns contents of SettingsEdit2 as a double
+handles.CerebusSettingsFile = hObject.String;
+guidata(hObject,handles);
 
 
 % --- Executes during object creation, after setting all properties.
@@ -386,6 +428,13 @@ function BrowseButton2_Callback(hObject, eventdata, handles)
 % hObject    handle to BrowseButton2 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+handles.CerebusSettingsFile = uigetfile('*.ccf','Select a cerebus configuration file');
+if ~strfind(handles.CerebusSettingsFile,'.ccf')
+    warndlg('A cerebus configuration file is required to record');
+end
+handles.SettingsEdit2.String = handles.CerebusSettingsFile;
+guidata(hObject,handles); % store it
+
 
 
 % --- Executes on button press in RecTimeCheck.
@@ -434,6 +483,19 @@ function StartRecButton_Callback(hObject, eventdata, handles)
 % hObject    handle to StartRecButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+% Check to see whether everything has been filled out. If not, let the user
+% know to fill some stuff out.
+if ~(handles.ValidMonkeySelected & handles.ValidArraySelected & handles.ValidArraySelected)
+    warndlg('You must select a valid monkey, array, and task. If the desired option isn''t available talk to Kevin');
+elseif ~exist(handles.RecordFolder,'dir') % is the recording folder location filled out?
+    warndlg('You must select a valid directory for storing the recordings');
+elseif ~exist(handles.CerebusSettingsFile,'file') | ~strfind(handles.CerebusSettingsFile,'.ccf');
+    warndlg('You must select a valid cerebus settings file so that we can run cbmex!');
+else
+    % -- code to start the recording. bingo bango -- %
+    close(handles)
+end
 
 
 % --- Executes on button press in WirelessCheck.
