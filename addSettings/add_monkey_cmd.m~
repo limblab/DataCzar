@@ -1,0 +1,10 @@
+function add_monkey_cmd(monkeyName, ccmID, usdaID, species)
+% add_monkey_cmd(monkeyName, ccmID, udaID, species)
+%
+% text-based method to add a new monkey to the database. An alternative is
+% to use a GUI based version I'm planning to make. HAHA!
+%
+% Aug 2018, KLB
+
+user = input('Username: ');
+pass = input('Password: ');

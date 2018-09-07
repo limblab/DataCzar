@@ -1,6 +1,6 @@
-function recording_add_postgres(directory,params)
+function postgres_scraper(directory,params)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% recording_add_postgres
+% postgres_scraper
 %
 % scans through a dirctory for cerebus files (nev, nsx etc) and adds them
 % to the LLSessionsDB postgres database. The idea behind this is that it
@@ -11,7 +11,8 @@ function recording_add_postgres(directory,params)
 % the future we might want to have some sort of error response if it
 % crashes or something. Maybe just an email to whoever's in charge? Dunno
 %
-% Currently the 
+%
+% Updated Aug 2018, KLB
 
 %% credentials and connection settings
 % since we probably don't want this available in a public proc
@@ -22,17 +23,6 @@ end
 
 
 vendor = 'PostgreSQL';
-
-%% initiate connection with monkey and array settings server
-db = 'MonkeySettings';
-
-
-if exist('url','var') % on the server
-    connSettings = database(db,user,pass,'Vendor',vendor,'URL',url);
-else % local host
-    connSettings = database(db,user,pass,'Vendor',vendor);
-end
-
 
 %% Initiate connection with sessions server
 db = 'LLSessionsDB';
@@ -77,9 +67,9 @@ fprintf('Found %i potential nev files\n',numel(nevList));
 
 % list of valid values for monkeys, array names etc
 % monkeys
-selectquery = 'SELECT DISTINCT monkeyName FROM arrays';
-monkeys = select(connSettings,selectquery);
-monkeys = monkeys.monkeyname; % move them from a table to a cell array, to make it easier
+selectquery = 'SELECT name FROM general_info.monkeys';
+monkeys = select(connSessions,selectquery);
+monkeys = monkeys.name; % move them from a table to a cell array, to make it easier
 
 % counters to keep track of addition to the DB for summary stats
 added = 0; failures = 0; prevAdded = 0;
