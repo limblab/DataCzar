@@ -50,10 +50,13 @@ end
 
 
 %% put it all into the server
-sqlquery = ['INSERT INTO general_info.monkeys (name, ccm_id, usda_id, species) VALUES ('''...
+sqlQuery = ['INSERT INTO general_info.monkeys (name, ccm_id, usda_id, species) VALUES ('''...
     strjoin({monkeyName,ccmID,usdaID,species},''','''),''');'];
-curs = exec(connSessions,sqlquery);
-fetch(curs);
+curs = exec(connSessions,sqlQuery); % connect to the database
+if ~isempty(curs.Message) % did it work?
+    error(['Could not properly connect to database. Returns message: ',curs.Message])
+end
+fetch(curs); % Execute the statement
 
 
 end
