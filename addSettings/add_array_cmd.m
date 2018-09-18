@@ -59,11 +59,55 @@ for ii = 1:numel(arrayInfoReqd)
     end
 end
 
-for ii = 1:numel(arrayInfoNULL)
-    if ~isfield(arrayInfo,arrayInfoNULL{ii})
-        arrayInfo.(arrayInfoNULL{ii}) = 'NULL';
+
+%% connect to the database
+
+prompt = {'Username','Password'};
+title = 'username to connect to server';
+dims = [1 35];
+definput = {'',''};
+userPass = inputdlg(prompt,title,dims,definput);
+
+% connect to the postgres database, store the handle for the DB in the gui
+% handle
+serverSettings = struct('vendor','PostgreSQL','db','LLSessionsDB',...
+    'url','vfsmmillerdb.fsm.northwestern.edu');
+connSessions = database(serverSettings.db,userPass{1},userPass{2},...
+    'Vendor',serverSettings.vendor,'Server',serverSettings.url);
+
+
+
+%% put it all into the server
+
+% need to put a fairly loose structure into a defined sql query
+% needs to be format INSERT INTO general_info.monkeys ('fields') VALUES ('values')
+fields = fieldnames(arrayInfo); % get all the fields
+sqlQuery = ['INSERT INTO general_info.arrays (', strjoin(fields,', '), ') VALUES (']; % define the columns we're going to be inserting
+for ii = 1:numel(fields) % for each column/field
+    if isnumeric(arrayInfo.(fields{ii})) % format changes if it's a number or not -- need single quotes if it's not a number
+        sqlQuery = [sqlQuery, num2str(arrayInfo.(fields{ii}))];
+    else
+        sqlQuery = [sqlQuery, '''', num2str(arrayInfo.(fields{ii})), ''''];
+    end
+    
+    % structure between elements in the values list
+    if ii<numel(fields) % add the necessary commas for everything except the end of the group
+        sqlQuery = [sqlQuery, ', ']; % add comma if it's still in the middle of the list
+    else
+        sqlQuery = [sqlQuery, ');']; % finish the query off otherwise.
     end
 end
+        
+
+curs = exec(connSessions,sqlQuery); % connect to the database
+if ~isempty(curs.Message) % did it work?
+    error(['Could not properly connect to database. Returns message: ',curs.Message])
+end
+fetch(curs); % Execute the statement
 
 
-%%
+
+
+
+
+end

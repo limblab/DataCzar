@@ -8,14 +8,15 @@ function add_monkey_cmd(monkeyName, ccmID, usdaID, species)
 
 
 %% Connection to the server
-user = input('Username: ','s');
-pass = input('Password: ','s');
+prompt = {'Username','Password'};
+name = 'Enter yo'' credentials';
+userPass = inputdlg(prompt,name);
 
 vendor = 'PostgreSQL';
 db = 'LLSessionsDB';
 url = 'vfsmmillerdb.fsm.northwestern.edu';
 
-connSessions = database(db,user,pass,'Vendor',vendor,'Server',url);
+connSessions = database(db,userPass{1},userPass{2},'Vendor',vendor,'Server',url);
 
 
 %% check the input variables
