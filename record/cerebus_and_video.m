@@ -16,7 +16,7 @@ recTime = 900; % time in seconds. if -1, just record until you hit a button on t
 
 %% begin recording
 path = ['E:\Data-lab1\17L2-Greyson\CerebusData\',datestr(now,'yyyymmdd')];
-filename = [datestr(now,'yyyymmdd'),'_Greyson_'];
+filename = [datestr(now,'yyyymmdd'),'_Greyson_isoWF_'];
 path_and_filename = strcat(path,filesep,filename);
 % Start video recording
 cbmex('analogout', 1, 'sequence', [15,0,300,21626,60,0], 'repeats', 1);
