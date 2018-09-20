@@ -53,11 +53,10 @@ else
     baseDir = uigetdir('.');
 end
 
-addNevs(connSessions,baseDir);
+exceptionList = addNevs(connSessions,baseDir,verbose);
 
 
 %% close everything
-close(connSettings)
 close(connSessions)
 end
 
@@ -70,7 +69,7 @@ end
 
 %% directory exploration function
 % looks through provided directory and subdirectories for nevs, nsx, etc
-function exceptionList = addNevs(connSessions, directory)
+function exceptionList = addNevs(connSessions, directory,verbose)
 
 nevList = dir([directory,filesep,'**/*.nev']); % all nevs in this folder
 fprintf('Found %i potential nev files\n',numel(nevList));
@@ -88,15 +87,15 @@ tasks = fetch(connSessions,sqlQuery);
 added = 0; failures = 0; prevAdded = 0;
 
 for ii = 1:length(nevList) % for each nev    
-    fprintf('Processing file %i of %i\n..............................\n',...
+    fprintf('\n..............................\nProcessing file %i of %i\n',...
         ii,numel(nevList));
     
     currFullPath = [nevList(ii).folder,filesep,nevList(ii).name];
     baseName = strsplit(nevList(ii).name,'.nev'); % get rid of the file extension
     baseName = baseName{1}; % switch it back to a string
 %     baseNameCopy = baseName; % for looking for cds etc for sorted. There's probably a better way to do this...
-    [~,sortFlag] = regexpi(baseName,'_(s{1}(orted)?|[0-9]{2}(?![0-9]))','split','match'); % looking for sorted stuff, get rid of that for the baseName
-    sortFlag = any(sortFlag);
+    sortFlag = (numel(regexpi(baseName,'_(s{1}(orted)?|[0-9]{2}(?![0-9]))','match')) > 0); % looking for sorted stuff, get rid of that for the baseName
+
     
 % find the monkey name in the filename
     monkeyName = cellfun(@(x) any(regexpi(baseName,x)),monkeys(:,1)); % try to find a monkey name in the filename
@@ -111,24 +110,12 @@ for ii = 1:length(nevList) % for each nev
     
  
 % filehash to see whether the file has already been added to the dB
-    if ispc
-        [~,shaHash] = dos(['CertUtil -hashfile "',currFullPath,'" sha256']); % get the SHA256 hash from windows
-        shaHash = regexpi(shaHash,'([a-f_0-9]{2} ){31}[a-f_0-9]{2}','match'); % pull out the actual hash from the reply
-        shaHash = strsplit(shaHash{:},' '); % get rid of the spaces
-        shaHash = [shaHash{:}];
-    elseif isunix
-        [~,shaHash] = unix(['sha256sum ',currFullPath]);
-        shaHash = regexpi(shaHash, '[a-f_0-9]{32}','match');
-    end
-        
-
+    shaHash = get_256_hash(currFullPath);
     % has this file already been logged?
-    selectquery = ['select * from recordings.sessions where sha256 = ''',shaHash,'''']; % look for the same hash
-    matchingFiles = select(connSessions,selectquery);
-    
+    sqlQuery = ['select * from recordings.spike_files where file_hash = ''',shaHash,'''']; % look for the same hash
+    matchingFiles = select(connSessions,sqlQuery);
     
     if numel(matchingFiles) == 0 % if there aren't any others like this file
-        
         % find the task name in the filename
         baseName_split = strsplit(baseName,'_');
         taskName = tasks(cellfun(@(x) any(strcmpi(baseName_split,x)), tasks)); % are there any task names we're certain about? -- this is an exact match, otherwise ask (maybe)
@@ -162,7 +149,7 @@ for ii = 1:length(nevList) % for each nev
         recTime = datestr(datenum(nev.MetaTags.DateTime),'HH:MM:SS'); % when it was recorded
         duration = nev.MetaTags.DataDurationSec; % length of the file
         numChans = length(unique(nev.Data.Spikes.Electrode)); % how many electrodes have data?
-        numUnits = sum((unique(nev.Data.Spikes.Unit)~=0)&(unique(nev.Data.Spikes.Unit)~=255)); % how many sorted units -- ie, not 0 or 255 (invalid)
+        numUnits = sum((nev.Data.Spikes.Unit~=0)&(nev.Data.Spikes.Unit~=255)); % how many sorted units -- ie, not 0 or 255 (invalid)
         
         
         % open related nsX files, look for EMG, force and kin?
@@ -173,23 +160,28 @@ for ii = 1:length(nevList) % for each nev
         forceSample = []; % sampling rate of the file found
         EMGSample = []; % sampling rate of the file found
         EMGHash = {};
+        EMGNames = {};
         forceHash = {};
-        for ii = 1:6
-            nsxName = [nevList(ii).folder,filesep,baseName,'.ns',ii];
+        for jj = 1:6
+            nsxName = [nevList(ii).folder,filesep,baseName,'.ns',num2str(jj)];
             if exist(nsxName,'file')
                 nsx = openNSx(nsxName,'noread');
                 % if there are any recordings labelled as EMG, enter them
                 if any(regexpi([nsx.ElectrodesInfo.Label],'EMG'))
                     hasEMG = true; % do we have any EMGs?
-                    EMGFile{end+1} = nsxName; % just in case it shows up in multiple files etc
+                    EMGFile{end+1} = [baseName,'.ns',num2str(jj)]; % just in case it shows up in multiple files etc
                     EMGSample(end+1) = nsx.MetaTags.SamplingFreq; % tack on the appropriate sampling rate
+                    EMGHash{end+1} = get_256_hash(nsxName);
+                    % so that we have the emg names 
+                    EMGNames{end+1} = regexpi([nsx.ElectrodesInfo.Label],'(?<=emg_)\w*','match');
                 end
                 
                 
-                if any(regexpi([nsx.ElectrodesInfo.Label],'force'));
+                if any(regexpi([nsx.ElectrodesInfo.Label],'force'))
                     hasForce = true;
-                    forceFile = nsxName; % if we have files with different
+                    forceFile{end+1} = [baseName,'.ns',num2str(jj)]; % if we have files with different
                     forceSample(end+1) = nsx.MetaTags.SamplingFreq; % tack on the appropriate sampling rate
+                    forceHash{end+1} = get_256_hash(nsxName);
                 end
                 
             end
@@ -199,14 +191,14 @@ for ii = 1:length(nevList) % for each nev
         % do we know what array this is?
         % look to see whether this recording occurred while any of the
         % arrays were implanted for this monkey
-        selectquery = ['SELECT a.serial FROM general_info.arrays as a ',...
+        sqlQuery = ['SELECT a.serial FROM general_info.arrays as a ',...
             'WHERE (a.monkey_id = ''',ccmID,''' AND a.implant_date <=''',recDate,''') AND ',...
             '(removal_date >= ''',recDate,''' OR removal_date IS NULL)'];
-        arrayEntry = select(connSessions,selectquery);
+        arrayEntry = fetch(connSessions,sqlQuery);
         
         implantID = NaN;
         if numel(arrayEntry) == 1
-            implantID = arrayEntry.implantid{:};
+            implantID = arrayEntry{:};
         else
             if verbose
                 arrayYN = input('Would you like to enter the array for this recording? ','s');
@@ -235,12 +227,13 @@ for ii = 1:length(nevList) % for each nev
 
     % create it if not
     if isempty(day)
-        sqlQuery = ['INSERT INTO recording.days (rec_date, monkey_id, day_key) VALUES (''',...
+        sqlQuery = ['INSERT INTO recordings.days (rec_date, monkey_id, day_key) VALUES (''',...
             strjoin({recDate, ccmID, day_key},''', '''),''');'];
-        fetch(connSessions,sqlQuery);
+        exec(connSessions,sqlQuery);
+%         fetch(curs);
 
         if verbose
-            fprintf(['Creating new entry into days table for ',recDate]);
+            fprintf(['\nCreating new entry into days table for ',recDate,'\n']);
         end
     end
 
@@ -254,22 +247,26 @@ for ii = 1:length(nevList) % for each nev
     % create the table if necessary
     if isempty(session)
         if ~isnan(taskName)
-            sqlQuery = ['INSERT INTO recordings.sessions (day_key, rec_time, sessions_key,',...
-                'task_name,duration) VALUES (''',...
-                strjoin({day_key,recTime,sessions_key,taskName,duration},''', '''),''';'];
-            fetch(connSessions,sqlQuery);
+            sqlQuery = ['INSERT INTO recordings.sessions (day_key, rec_time, sessions_key, ',...
+                'task_name, duration) VALUES (''',...
+                strjoin({day_key,recTime,sessions_key,taskName,[num2str(duration),' seconds']},''', '''),''');'];
+%             fetch(connSessions,sqlQuery);
+            exec(connSessions,sqlQuery);
+%             fetch(curs);
 
             if verbose
-                fprintf('Creating new entry into sessions table')
+                fprintf('\nCreating new entry into sessions table for record time ',sessions_key,'\n')
             end
         else
             sqlQuery = ['INSERT INTO recordings.sessions (day_key, rec_time, sessions_key,',...
                 'duration) VALUES (''',...
-                strjoin({day_key,recTime,sessions_key,duration},''', '''),''';'];
-            fetch(connSessions,sqlQuery);
+                strjoin({day_key,recTime,sessions_key,[num2str(duration),' seconds']},''', '''),''');'];
+%             fetch(connSessions,sqlQuery);
+            exec(connSessions,sqlQuery);
+%             fetch(curs);
 
             if verbose
-                fprintf('Creating new entry into sessions table')
+                fprintf('\nCreating new entry into sessions table for record time ',sessions_key,'\n')
             end
         end
     end
@@ -278,18 +275,20 @@ for ii = 1:length(nevList) % for each nev
     % Create a new entry into the spike_files table
     if ~isnan(implantID) % if we have an implant name
         sqlQuery = ['INSERT INTO recordings.spike_files (sessions_key, array_serial, '...
-            'filename, file_hash, setting_file, is_sorted, num_chans, num_units, '...
-            'rec_system) VALUES (''',...
+            'filename, file_hash, setting_file, rec_system, is_sorted, '...
+            'num_chans, num_units) VALUES (''',...
             strjoin({sessions_key, implantID, nevList(ii).name, shaHash, [baseName,'.ccf'],...
-            sortFlag, numChans, numUnits, 'Cerebus'},''', '''),''';'];
-        fetch(connSessions,sqlQuery);
+            'Cerebus', num2str(sortFlag)},''', '''),''', ',...
+            num2str(numChans),', ' num2str(numUnits),');'];
+        curs = exec(connSessions,sqlQuery);
     else % if not -- this will be a bit of trouble, but there it is.
         sqlQuery = ['INSERT INTO recordings.spike_files (sessions_key, '...
-            'filename, file_hash, setting_file, is_sorted, num_chans, num_units, '...
-            'rec_system) VALUES (''',...
+            'filename, file_hash, setting_file, rec_system, is_sorted, '...
+            'num_chans, num_units) VALUES (''',...
             strjoin({sessions_key, nevList(ii).name, shaHash, [baseName,'.ccf'],...
-            sortFlag, numChans, numUnits, 'Cerebus'},''', '''),''';'];
-        fetch(connSessions,sqlQuery);
+            'Cerebus', num2str(sortFlag)},''', '''),''', ',...
+            num2str(numChans),', ' num2str(numUnits),');'];
+        curs = exec(connSessions,sqlQuery);
 
     end
 
@@ -297,11 +296,34 @@ for ii = 1:length(nevList) % for each nev
     %
     % Create a new entry into the EMG database if necessary
     if hasEMG
-        for ii = 1:numel(EMGFile)
-            % create the hash for the 
+        for jj = 1:numel(EMGFile)
+            % has it been added to the EMG table previously?
+            sqlQuery = ['SELECT file_hash FROM recordings.emg_files where file_hash = ''',...
+                EMGHash{jj},''';'];
+            if isempty(fetch(connSessions,sqlQuery))
+                sqlQuery = ['INSERT INTO recordings.emg_files (sessions_key, filename, ',...
+                    'file_hash, rec_system, sampling_rate, muscle_list) VALUES (''',...
+                    strjoin({sessions_key, EMGFile{jj}, EMGHash{jj}, 'Cerebus'},''', '''),...
+                    ''', ', num2str(EMGSample(jj)),', ''{"', strjoin(EMGNames{jj},'", "'),'"}'');'];
+                curs = exec(connSessions,sqlQuery);
+            end
+        end
+    end
     
-    
-    
+    if hasForce
+        for jj = 1:numel(EMGFile)
+            % has it been added to the EMG table previously?
+            sqlQuery = ['SELECT file_hash FROM recordings.emg_files where file_hash = ''',...
+                forceHash{jj},''';'];
+            if isempty(fetch(connSessions,sqlQuery))
+                sqlQuery = ['INSERT INTO recordings.force_files (sessions_key, filename, ',...
+                    'file_hash, rec_system, sampling_rate) VALUES (''',...
+                    strjoin({sessions_key, forceFile{jj}, forceHash{jj}, 'Cerebus'},''', '''),...
+                        ''', ',num2str(forceSample(jj)), ');'];
+                curs = exec(connSessions,sqlQuery);
+            end
+        end
+    end
     
 
 
@@ -316,14 +338,36 @@ for ii = 1:length(nevList) % for each nev
         
 end    
 
-fprintf('\n\n-----------------------------------------------------------------\n')
-fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
-    added, prevAdded, failures);
-fprintf('\n-----------------------------------------------------------------\n\n')
+if verbose
+    fprintf('\n\n-----------------------------------------------------------------\n')
+    fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
+        added, prevAdded, failures);
+    fprintf('\n-----------------------------------------------------------------\n\n')
+end
+
+exceptionList = [added,prevAdded,failures];
 
 end
 
 
+%% -- function get_256_hash --
+% calculates the sha256 hash on a file for the purpose of identification.
+% Since we have to do this in a few places, we might as well have it in a
+% separate function
+%
+function shaHash = get_256_hash(fullFilePath)
+
+    if ispc
+        [~,shaHash] = dos(['CertUtil -hashfile "',fullFilePath,'" sha256']); % get the SHA256 hash from windows
+        shaHash = regexpi(shaHash,'([a-f_0-9]{2} ){31}[a-f_0-9]{2}','match'); % pull out the actual hash from the reply
+        shaHash = strsplit(shaHash{:},' '); % get rid of the spaces
+        shaHash = [shaHash{:}];
+    elseif isunix
+        [~,shaHash] = unix(['sha256sum ',fullFilePath]);
+        shaHash = regexpi(shaHash, '[a-f_0-9]{32}','match');
+    end
+    
+end
 
 
 

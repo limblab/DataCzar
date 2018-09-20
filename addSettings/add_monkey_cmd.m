@@ -32,7 +32,7 @@ if ~exist('usdaID','var')
     if any(strcmpi(usdaIDyn,{'y','yes'}))
         usdaID = input('What is the ID number? ','s');
     else
-        usdaID = 'NULL';
+        usdaID = NaN;
     end
 end
 if ~exist('species','var')
@@ -51,8 +51,14 @@ end
 
 
 %% put it all into the server
-sqlQuery = ['INSERT INTO general_info.monkeys (name, ccm_id, usda_id, species) VALUES ('''...
-    strjoin({monkeyName,ccmID,usdaID,species},''','''),''');'];
+if ~isnan(usdaID)
+    sqlQuery = ['INSERT INTO general_info.monkeys (name, ccm_id, usda_id, species) VALUES ('''...
+        strjoin({monkeyName,lower(ccmID),usdaID,species},''','''),''');'];
+else
+    sqlQuery = ['INSERT INTO general_info.monkeys (name, ccm_id, species) VALUES ('''...
+        strjoin({monkeyName,lower(ccmID),species},''','''),''');'];
+end
+
 curs = exec(connSessions,sqlQuery); % connect to the database
 if ~isempty(curs.Message) % did it work?
     error(['Could not properly connect to database. Returns message: ',curs.Message])
