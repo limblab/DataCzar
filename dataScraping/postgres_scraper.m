@@ -71,7 +71,12 @@ end
 % looks through provided directory and subdirectories for nevs, nsx, etc
 function exceptionList = addNevs(connSessions, directory,verbose)
 
-nevList = dir([directory,filesep,'**/*.nev']); % all nevs in this folder
+if verLessThan('matlab','R2017b')
+    nevList = struct('name',{},'date',{},'bytes',{},'isdir',{},'datenum',{},'folder',{})
+    nevList = findNevsRecursive(directory,nevList);
+else
+    nevList = dir([directory,filesep,'**/*.nev']); % all nevs in this folder
+end
 fprintf('Found %i potential nev files\n',numel(nevList));
 
 
@@ -113,7 +118,7 @@ for ii = 1:length(nevList) % for each nev
     shaHash = get_256_hash(currFullPath);
     % has this file already been logged?
     sqlQuery = ['select * from recordings.spike_files where file_hash = ''',shaHash,'''']; % look for the same hash
-    matchingFiles = select(connSessions,sqlQuery);
+    matchingFiles = fetch(connSessions,sqlQuery);
     
     if numel(matchingFiles) == 0 % if there aren't any others like this file
         % find the task name in the filename
@@ -371,3 +376,26 @@ end
 
 
 
+%% -- function findNevsRecursive
+% 
+% finds all of the nevs in the current and subdirectories -- this is for
+% every version of matlab pre 2017, because apparently it couldn't do that
+% before.
+function nevList = findNevsRecursive(directory,nevList)
+    
+    newerList = dir([directory,filesep,'*.nev']);
+    if ~isempty(newerList)
+        [newerList.folder] = deal(directory);
+        nevList = [nevList;newerList];
+    end
+
+    dirList = dir(directory); % find all files in here
+    dirList = dirList(3:end); % get rid of . and ..
+    dirList = dirList([dirList.isdir]); % only keep the directories
+    for ii = 1:length(dirList) % for each directory
+        if ~any(regexp(dirList(ii).name,'\.*')) % we're gonna ignore anything with a dot on the beginning - linux conventions 
+            nevList = [findNevsRecursive([directory,filesep,dirList(ii).name],nevList)]; % rerun it for all sub directories
+        end
+    end
+    
+end
