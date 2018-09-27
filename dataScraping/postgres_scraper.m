@@ -11,20 +11,42 @@ function postgres_scraper(directory,varargin)
 % the future we might want to have some sort of error response if it
 % crashes or something. Maybe just an email to whoever's in charge? Dunno
 %
-% This also allows name/value pairs of optional arguments - at the moment
-% I've only added support for 'verbose', which is T/F, default T
+% -------------------------------------------------------------------------
+% Allows name/value pairs of optional arguments 
+%
+%   Field               Explanation
+%
+%   verbose             Boolean [default T] - asks for user inputs, and
+%                           gives feedback for each entry
+%   fileCheck           Boolean [default F] - checks to see if files have
+%                           been previously added based on filename rather
+%                           than the sha256 hash. Not as solid, but much
+%                           faster.
+%   altTaskName         Boolean [default T] - checks alternative task
+%                           names to account for different conventions used
+%                           for filenames. This may make things match a
+%                           little more easily, which might not always be a
+%                           good thing
+%
+% 
 %
 %
 % Updated September 2018, KLB
 
 
 %% varargin parsin
-verbose = true;
+options.verbose = true;
+options.fileCheck = false;
+options.altTaskName = true;
 
 for ii = 1:2:nargin-1
-    switch varargin(ii)
+    switch varargin{ii}
         case 'verbose'
-            verbose = varargin(ii+1);
+            options.verbose = varargin{ii+1};
+        case 'fileCheck'
+            options.fileCheck = varargin{ii+1};
+        case 'altTaskName'
+            options.altTaskName = varargin{ii+1};
         otherwise
             warning(['Invalid input: ',varargin(ii)]);
     end
@@ -43,6 +65,9 @@ url = 'vfsmmillerdb.fsm.northwestern.edu';
 
 connSessions = database(db,userPass{1},userPass{2},'Vendor',vendor,'Server',url);
 
+if ~isempty(connSessions.message)
+    error(['Could not connect to database. Returned with message: ',connSessions.message]');
+end
 
 %% start running through the current folder
 
@@ -53,7 +78,7 @@ else
     baseDir = uigetdir('.');
 end
 
-exceptionList = addNevs(connSessions,baseDir,verbose);
+exceptionList = addNevs(connSessions,baseDir,options);
 
 
 %% close everything
@@ -69,10 +94,10 @@ end
 
 %% directory exploration function
 % looks through provided directory and subdirectories for nevs, nsx, etc
-function exceptionList = addNevs(connSessions, directory,verbose)
+function exceptionList = addNevs(connSessions, directory,options)
 
 if verLessThan('matlab','R2017b')
-    nevList = struct('name',{},'date',{},'bytes',{},'isdir',{},'datenum',{},'folder',{})
+    nevList = struct('name',{},'date',{},'bytes',{},'isdir',{},'datenum',{},'folder',{});
     nevList = findNevsRecursive(directory,nevList);
 else
     nevList = dir([directory,filesep,'**/*.nev']); % all nevs in this folder
@@ -87,6 +112,10 @@ monkeys = fetch(connSessions,sqlQuery);
 % tasks
 sqlQuery = 'SELECT task_name FROM general_info.tasks';
 tasks = fetch(connSessions,sqlQuery);
+if options.altTaskName
+    sqlQuery = 'SELECT alt_task_name FROM general_info.tasks';
+    altTasks = fetch(connSessions,sqlQuery);
+end
 
 % counters to keep track of addition to the DB for summary stats
 added = 0; failures = 0; prevAdded = 0;
@@ -95,42 +124,72 @@ for ii = 1:length(nevList) % for each nev
     fprintf('\n..............................\nProcessing file %i of %i\n',...
         ii,numel(nevList));
     
+    
     currFullPath = [nevList(ii).folder,filesep,nevList(ii).name];
     baseName = strsplit(nevList(ii).name,'.nev'); % get rid of the file extension
     baseName = baseName{1}; % switch it back to a string
-%     baseNameCopy = baseName; % for looking for cds etc for sorted. There's probably a better way to do this...
-    sortFlag = (numel(regexpi(baseName,'_(s{1}(orted)?|[0-9]{2}(?![0-9]))','match')) > 0); % looking for sorted stuff, get rid of that for the baseName
+    sortFlag = (numel(regexpi(baseName,'_(s{1}(orted)?|[0-9]{2}(?![0-9]))','match')) > 0); % looking for sorted stuff
 
     
-% find the monkey name in the filename
-    monkeyName = cellfun(@(x) any(regexpi(baseName,x)),monkeys(:,1)); % try to find a monkey name in the filename
-    if sum(monkeyName) ~= 1 % could we resolve the monkey name?
-        warning('Could not resolve a valid monkey name in the filename. Has this monkey and array been added to the array database?')
-        failures = failures + 1;
-        continue
-    else
-        ccmID = monkeys{monkeyName,2}; % get the ccmID number
-        monkeyName = monkeys{monkeyName,1}; % set it as the found name
+    % check to see whether the file has already been added to the dB. We
+    % can either do that by checking the file hash, or check the filename.
+    % I prefer the former when we have time, but that definitely takes
+    % longer.
+    if ~options.fileCheck
+        shaHash = get_256_hash(currFullPath);
+        % has this file already been logged?
+        sqlQuery = ['select * from recordings.spike_files where file_hash = ''',shaHash,'''']; % look for the same hash
+        matchingFiles = fetch(connSessions,sqlQuery);
+
+        % I think some PCs don't have certutil....
+        if isempty(shaHash)
+            warning(['Could not calculate shaHash; skipping file ',basename]);
+            failures = failures + 1;
+            continue;
+        end
+        
+    else % if we want to just check the file name 
+        sqlQuery = ['select * from recordings.spike_files where filename = ''',nevList(ii).name,''';'];
+        matchingFiles = fetch(connSessions,sqlQuery);
     end
     
- 
-% filehash to see whether the file has already been added to the dB
-    shaHash = get_256_hash(currFullPath);
-    % has this file already been logged?
-    sqlQuery = ['select * from recordings.spike_files where file_hash = ''',shaHash,'''']; % look for the same hash
-    matchingFiles = fetch(connSessions,sqlQuery);
+    
     
     if numel(matchingFiles) == 0 % if there aren't any others like this file
+        
+        % if we didn't create the shaHash previously due to using the
+        % filename
+        if options.fileCheck
+            shaHash = get_256_hash(currFullPath);
+        end
+        
+        
+    % find the monkey name in the filename
+        monkeyName = cellfun(@(x) any(regexpi(baseName,x)),monkeys(:,1)); % try to find a monkey name in the filename
+        if sum(monkeyName) ~= 1 % could we resolve the monkey name?
+            warning(['Could not resolve a valid monkey name in file ',baseName,',. Has this monkey and array been added to the array database?'])
+            failures = failures + 1;
+            continue
+        else
+            ccmID = monkeys{monkeyName,2}; % get the ccmID number
+            monkeyName = monkeys{monkeyName,1}; % set it as the found name
+        end
+        
+        
         % find the task name in the filename
         baseName_split = strsplit(baseName,'_');
         taskName = tasks(cellfun(@(x) any(strcmpi(baseName_split,x)), tasks)); % are there any task names we're certain about? -- this is an exact match, otherwise ask (maybe)
+        if options.altTaskName
+            taskName = [taskName, altTasks(cellfun(@(x) any(strcmpi(baseName_split,x)),altTasks))];
+        end 
+            
         if numel(taskName) ~= 1
-            if verbose
+            if options.verbose
                 taskYN = input(['Unable to guess task for file: ',baseName,'. Do you know the task?'],'s');
                 if any(strcmpi(taskYN,{'y','yes','yeah','ok','true'}))
                     taskName = input('Taskname: ','s');
                 else
-                    warning('Could not resolve task name. You''l have to do this manually later!');
+                    warning('Could not resolve task name. You''ll have to do this manually later!');
                     taskName = NaN;
                 end
             else
@@ -205,7 +264,7 @@ for ii = 1:length(nevList) % for each nev
         if numel(arrayEntry) == 1
             implantID = arrayEntry{:};
         else
-            if verbose
+            if options.verbose
                 arrayYN = input('Would you like to enter the array for this recording? ','s');
                 if any(strcmpi(arrayYN,{'y','yes','yeah','true'}))
                     implantID = input('array SN: ','s');
@@ -237,7 +296,7 @@ for ii = 1:length(nevList) % for each nev
         exec(connSessions,sqlQuery);
 %         fetch(curs);
 
-        if verbose
+        if options.verbose
             fprintf(['\nCreating new entry into days table for ',recDate,'\n']);
         end
     end
@@ -259,8 +318,8 @@ for ii = 1:length(nevList) % for each nev
             exec(connSessions,sqlQuery);
 %             fetch(curs);
 
-            if verbose
-                fprintf('\nCreating new entry into sessions table for record time ',sessions_key,'\n')
+            if options.verbose
+                fprintf(['\nCreating new entry into sessions table for ',sessions_key,'\n'])
             end
         else
             sqlQuery = ['INSERT INTO recordings.sessions (day_key, rec_time, sessions_key,',...
@@ -270,8 +329,8 @@ for ii = 1:length(nevList) % for each nev
             exec(connSessions,sqlQuery);
 %             fetch(curs);
 
-            if verbose
-                fprintf('\nCreating new entry into sessions table for record time ',sessions_key,'\n')
+            if options.verbose
+                fprintf(['\nCreating new entry into sessions table for ',sessions_key,'\n'])
             end
         end
     end
@@ -316,9 +375,9 @@ for ii = 1:length(nevList) % for each nev
     end
     
     if hasForce
-        for jj = 1:numel(EMGFile)
+        for jj = 1:numel(forceFile)
             % has it been added to the EMG table previously?
-            sqlQuery = ['SELECT file_hash FROM recordings.emg_files where file_hash = ''',...
+            sqlQuery = ['SELECT file_hash FROM recordings.force_files where file_hash = ''',...
                 forceHash{jj},''';'];
             if isempty(fetch(connSessions,sqlQuery))
                 sqlQuery = ['INSERT INTO recordings.force_files (sessions_key, filename, ',...
@@ -343,7 +402,7 @@ for ii = 1:length(nevList) % for each nev
         
 end    
 
-if verbose
+if options.verbose
     fprintf('\n\n-----------------------------------------------------------------\n')
     fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
         added, prevAdded, failures);
