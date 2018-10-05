@@ -1,23 +1,31 @@
-function add_monkey_cmd(monkeyName, ccmID, usdaID, species)
-% add_monkey_cmd(monkeyName, ccmID, udaID, species)
+function add_monkey_cmd(monkeyName, ccmID, species, usdaID, connSessions)
+% add_monkey_cmd(monkeyName, ccmID, species, usdaID, connection)
 %
 % text-based method to add a new monkey to the database. An alternative is
 % to use a GUI based version I'm planning to make. HAHA!
 %
-% Aug 2018, KLB
+% Sept 2018, KLB
 
 
 %% Connection to the server
-prompt = {'Username','Password'};
-name = 'Enter yo'' credentials';
-userPass = inputdlg(prompt,name);
+if ~exist('connSessions','var')
+    prompt = {'Username','Password'};
+    name = 'Enter yo'' credentials';
+    userPass = inputdlg(prompt,name);
 
-vendor = 'PostgreSQL';
-db = 'LLSessionsDB';
-url = 'vfsmmillerdb.fsm.northwestern.edu';
+    vendor = 'PostgreSQL';
+    db = 'LLSessionsDB';
+    url = 'vfsmmillerdb.fsm.northwestern.edu';
 
-connSessions = database(db,userPass{1},userPass{2},'Vendor',vendor,'Server',url);
+    connSessions = database(db,userPass{1},userPass{2},'Vendor',vendor,'Server',url);
 
+    if strcmp(connSessions.Message,'Unable to find JDBC driver.')
+        h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
+        uiwait(h);
+        doc JDBC;
+        error('Unable to find JDBC driver.')
+    end
+end
 
 %% check the input variables
 
