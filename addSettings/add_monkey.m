@@ -60,9 +60,7 @@ if ~isfield(handles,'connSessions');
 % dialog box for user and password
     prompt = {'Username','Password'};
     title = 'username to connect to server';
-    dims = [1 35];
-    definput = {'',''};
-    userPass = inputdlg(prompt,title,dims,definput);
+    userPass = inputdlg(prompt,title);
 
     % connect to the postgres database, store the handle for the DB in the gui
     % handle
@@ -81,7 +79,7 @@ if ~isfield(handles,'connSessions');
 end
 
 
-handles.monkeyInfo = struct('name','','ccm_id','','usda_id','','species','');
+handles.monkeyInfo = struct('name','','ccm_id','','usda_id','','species','Rhesus');
 
 
 % Update handles structure
@@ -237,4 +235,4 @@ add_monkey_cmd(handles.monkeyInfo.name, handles.monkeyInfo.ccm_id,...
     handles.monkeyInfo.species, handles.monkeyInfo.usda_id,...
     handles.connSessions);
 
-close(handles)
+closereq

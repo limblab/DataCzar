@@ -1,8 +1,8 @@
 function add_monkey_cmd(monkeyName, ccmID, species, usdaID, connSessions)
-% add_monkey_cmd(monkeyName, ccmID, species, usdaID, connection)
+% add_monkey_cmd(monkeyName, ccmID, species, usdaID)
 %
 % text-based method to add a new monkey to the database. An alternative is
-% to use a GUI based version I'm planning to make. HAHA!
+% to use a GUI based version I made!
 %
 % Sept 2018, KLB
 
@@ -61,17 +61,22 @@ end
 %% put it all into the server
 if ~isnan(usdaID)
     sqlQuery = ['INSERT INTO general_info.monkeys (name, ccm_id, usda_id, species) VALUES ('''...
-        strjoin({monkeyName,lower(ccmID),usdaID,species},''','''),''');'];
+        strjoin({monkeyName,upper(ccmID),usdaID,species},''','''),''');'];
 else
     sqlQuery = ['INSERT INTO general_info.monkeys (name, ccm_id, species) VALUES ('''...
-        strjoin({monkeyName,lower(ccmID),species},''','''),''');'];
+        strjoin({monkeyName,upper(ccmID),species},''','''),''');'];
 end
 
-curs = exec(connSessions,sqlQuery); % connect to the database
-if ~isempty(curs.Message) % did it work?
-    error(['Could not properly connect to database. Returns message: ',curs.Message])
+try
+    curs = exec(connSessions,sqlQuery); % connect to the database
+    if ~isempty(curs.Message) % did it work?
+        error(['Could not properly connect to database. Returns message: ',curs.Message])
+    end
+    fetch(curs); % Execute the statement
+catch ME
+    error(ME)
 end
-fetch(curs); % Execute the statement
+disp([monkeyName,' ',ccmID,' added to database']) % give an indication
 
 
 end

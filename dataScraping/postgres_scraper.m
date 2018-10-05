@@ -40,12 +40,12 @@ options.fileCheck = false;
 options.altTaskName = true;
 
 for ii = 1:2:nargin-1
-    switch varargin{ii}
+    switch lower(varargin{ii})
         case 'verbose'
             options.verbose = varargin{ii+1};
-        case 'fileCheck'
+        case 'filecheck'
             options.fileCheck = varargin{ii+1};
-        case 'altTaskName'
+        case 'alttaskname'
             options.altTaskName = varargin{ii+1};
         otherwise
             warning(['Invalid input: ',varargin(ii)]);
@@ -55,29 +55,7 @@ end
 
 %% connect to the database, get credentials etc
 
-prompt = {'Username','Password'};
-name = 'Enter yo'' credentials';
-userPass = inputdlg(prompt,name);
-
-vendor = 'PostgreSQL';
-db = 'LLSessionsDB';
-url = 'vfsmmillerdb.fsm.northwestern.edu';
-
-connSessions = database(db,userPass{1},userPass{2},'Vendor',vendor,'Server',url);
-
-% if the JDBC driver isn't installed, direct them on how to rectify that
-% situation
-if strcmp(connSessions.Message,'Unable to find JDBC driver.')
-    h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
-    uiwait(h);
-    doc JDBC;
-    return;
-end
-
-% other errors, just let them know about it
-if ~isempty(connSessions.message)
-    error(['Could not connect to database. Returned with message: ',connSessions.message]');
-end
+connSessions = LLSessionsDB_connector;
 
 %% start running through the current folder
 
@@ -190,7 +168,8 @@ for ii = 1:length(nevList) % for each nev
         baseName_split = strsplit(baseName,'_');
         taskName = tasks(cellfun(@(x) any(strcmpi(baseName_split,x)), tasks)); % are there any task names we're certain about? -- this is an exact match, otherwise ask (maybe)
         if options.altTaskName
-            taskName = [taskName, altTasks(cellfun(@(x) any(strcmpi(baseName_split,x)),altTasks))];
+            sqlQuery = ['SELECT t.task_name FROM general_info.tasks as t where ''',baseName,''' LIKE any(t.alt_task_name)'];
+            taskName = fetch(connSessions,sqlQuery);
         end 
             
         if numel(taskName) ~= 1

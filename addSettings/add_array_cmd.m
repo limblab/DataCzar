@@ -1,4 +1,4 @@
-function add_array_cmd(arrayInfo)
+function add_array_cmd(arrayInfo,connSessions)
 %% add_array_cmd(array_info)
 %
 % function to add a new array to the database. This is the method to add it
@@ -62,19 +62,9 @@ end
 
 %% connect to the database
 
-prompt = {'Username','Password'};
-title = 'username to connect to server';
-dims = [1 35];
-definput = {'',''};
-userPass = inputdlg(prompt,title,dims,definput);
-
-% connect to the postgres database, store the handle for the DB in the gui
-% handle
-serverSettings = struct('vendor','PostgreSQL','db','LLSessionsDB',...
-    'url','vfsmmillerdb.fsm.northwestern.edu');
-connSessions = database(serverSettings.db,userPass{1},userPass{2},...
-    'Vendor',serverSettings.vendor,'Server',serverSettings.url);
-
+if ~exist('connSessions','var')
+    connSessions = LLSessionsDB_connector;
+end
 
 
 %% put it all into the server
@@ -104,6 +94,8 @@ if ~isempty(curs.Message) % did it work?
     error(['Could not properly connect to database. Returns message: ',curs.Message])
 end
 fetch(curs); % Execute the statement
+
+disp(['Array ',serial,' added to the database']);
 
 
 

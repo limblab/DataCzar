@@ -17,6 +17,7 @@ function filenames = gimme_a_file_cmd(varargin)
 %*   numResults            Maximum number of files to return. [default:20]
 %*   justFileName          Return just the filenames. Otherwise it returns
 %                              the values for every search term [default:T]
+%*   connSessions          database connection object.
 %*   monkey_name           Name of the monkey. This must be a string.
 %*   ccm_id                CCM ID. This is a string
 %*   task_name             Name of the task. This must be a string. 
@@ -67,8 +68,6 @@ elseif nargin == 0
     error('You need to enter something to search for')
 end
 
-
-
 sqlQuery = parse_input_arrays(varargin{:});
 
 
@@ -77,54 +76,27 @@ sqlQuery = parse_input_arrays(varargin{:});
 %% connection to the database
 
 % if we provide a connection to a server
-connSessions = [varargin{find(strcmpi(varargin,'dbConnection'))+1}];
+connSessions = [varargin{find(strcmpi(varargin,'connSessions'))+1}];
 
-if ~isa(connSessions,'database.jdbc.connection')
-    prompt = {'Username','Password'};
-    title = 'username to connect to server';
-    userPass = inputdlg(prompt,title);
-
-    % connect to the postgres database, store the handle for the DB in the gui
-    % handle
-    serverSettings = struct('vendor','PostgreSQL','db','LLSessionsDB',...
-        'url','vfsmmillerdb.fsm.northwestern.edu');
-    connSessions = database(serverSettings.db,userPass{1},userPass{2},...
-        'Vendor',serverSettings.vendor,'Server',serverSettings.url);
-    
-    if strcmp(connSessions.Message,'Unable to find JDBC driver.')
-        h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
-        uiwait(h);
-        doc "PostgreSQL JDBC for Windows";
-    end
-
+if ~isa(connSessions,'database.jdbc.connection') % if we couldn't find any arguments named "dbConnection"
+    connSessions = LLSessionsDB_connector; % connect to the database
 end
-
-
-
-
 
 
 %% send the sqlQuery, check for errors
 
 data = fetch(connSessions,sqlQuery);
-
-
-
 disp(data)
-
 filenames = data(:,1);
-
-
-
-
 
 end
 
 
 
-%% ------------------------------------------------------------------------\
+%% ------------------------------------------------------------------------
 % SUBFUNCTIONS
-
+%
+% -------------------------------------------------------------------------
 
 
 

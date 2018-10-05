@@ -58,29 +58,7 @@ handles.output = hObject;
 % if there's a handle already open we don't want to reconnect to the
 % database
 if ~isfield(handles,'connSessions');
-% dialog box for user and password
-    prompt = {'Username','Password'};
-    title = 'username to connect to server';
-    userPass = inputdlg(prompt,title);
-
-    % connect to the postgres database, store the handle for the DB in the gui
-    % handle
-    serverSettings = struct('vendor','PostgreSQL','db','LLSessionsDB',...
-        'url','vfsmmillerdb.fsm.northwestern.edu');
-    handles.connSessions = database(serverSettings.db,userPass{1},userPass{2},...
-        'Vendor',serverSettings.vendor,'Server',serverSettings.url);
-
-    % to let the user know if we can't find the JDBC driver
-    if strcmp(handles.connSessions.Message,'Unable to find JDBC driver.')
-        h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
-        uiwait(h);
-        if ispc
-            doc "PostgreSQL JDBC for Windows";
-        else
-            doc "PostgreSQL JDBC for Linux";
-        end
-        error('The postgres JDBC driver hasn''t been installed. See reference page.');
-    end
+    handles.connSessions = LLSessionsDB_connector;
 end
 
 
@@ -152,8 +130,8 @@ function add_array_button_Callback(hObject, eventdata, handles)
 % hObject    handle to add_array_button (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-add_array_cmd(handles.array_info); % run the function
-close(handles) % close everything
+add_array_cmd(handles.array_info,handles.connSessions); % run the function
+closereq % close everything
 
 
 
