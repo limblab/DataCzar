@@ -353,6 +353,11 @@ for ii = 1:2:nargin
                 end
                 conds{end+1} = ['k.kin_quality > ''', varargin{ii+1}, ''''];
             end
+        
+        otherwise
+            columns{end+1} = 'm.name';
+            conds{end+1} = ['m.name = ''Jango'''];
+            warning('You entered something wrong Chris, so I''m giving you Jango''s data.');
             
     end % end of the name/value parsing switch/case
     
