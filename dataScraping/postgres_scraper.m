@@ -65,6 +65,16 @@ url = 'vfsmmillerdb.fsm.northwestern.edu';
 
 connSessions = database(db,userPass{1},userPass{2},'Vendor',vendor,'Server',url);
 
+% if the JDBC driver isn't installed, direct them on how to rectify that
+% situation
+if strcmp(connSessions.Message,'Unable to find JDBC driver.')
+    h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
+    uiwait(h);
+    doc JDBC;
+    return;
+end
+
+% other errors, just let them know about it
 if ~isempty(connSessions.message)
     error(['Could not connect to database. Returned with message: ',connSessions.message]');
 end
@@ -256,7 +266,7 @@ for ii = 1:length(nevList) % for each nev
         % look to see whether this recording occurred while any of the
         % arrays were implanted for this monkey
         sqlQuery = ['SELECT a.serial FROM general_info.arrays as a ',...
-            'WHERE (a.monkey_id = ''',ccmID,''' AND a.implant_date <=''',recDate,''') AND ',...
+            'WHERE (a.ccm_id = ''',ccmID,''' AND a.implant_date <=''',recDate,''') AND ',...
             '(removal_date >= ''',recDate,''' OR removal_date IS NULL)'];
         arrayEntry = fetch(connSessions,sqlQuery);
         
@@ -291,7 +301,7 @@ for ii = 1:length(nevList) % for each nev
 
     % create it if not
     if isempty(day)
-        sqlQuery = ['INSERT INTO recordings.days (rec_date, monkey_id, day_key) VALUES (''',...
+        sqlQuery = ['INSERT INTO recordings.days (rec_date, ccm_id, day_key) VALUES (''',...
             strjoin({recDate, ccmID, day_key},''', '''),''');'];
         exec(connSessions,sqlQuery);
 %         fetch(curs);

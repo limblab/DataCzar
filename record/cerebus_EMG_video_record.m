@@ -95,6 +95,7 @@ if ~isfield(handles,'connSessions');
         h = errordlg('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing','modal');
         uiwait(h);
         doc JDBC;
+        error('The postgres JDBC driver hasn''t been installed. See reference page.','JDBC missing');
     end
 end
 
