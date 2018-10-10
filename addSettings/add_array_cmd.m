@@ -45,7 +45,7 @@ function add_array_cmd(arrayInfo,connSessions)
 
 %% check the incoming settings
 % fields  that can't be empty
-arrayInfoReqd = {'serial','array_type','monkey_id','implant_date','implant_location'};
+arrayInfoReqd = {'serial','array_type','ccm_id','implant_date','implant_location'};
 % fields that can be empty
 arrayInfoNULL = {'electrode_length','lead_length','removal_date','map_file',...
                         'loc_ML','loc_AP','crani_Medial',...
@@ -95,7 +95,7 @@ if ~isempty(curs.Message) % did it work?
 end
 fetch(curs); % Execute the statement
 
-disp(['Array ',serial,' added to the database']);
+disp(['Array ',array_info.serial,' added to the database']);
 
 
 
