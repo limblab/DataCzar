@@ -95,7 +95,7 @@ if ~isempty(curs.Message) % did it work?
 end
 fetch(curs); % Execute the statement
 
-disp(['Array ',array_info.serial,' added to the database']);
+disp(['Array ',arrayInfo.serial,' added to the database']);
 
 
 
