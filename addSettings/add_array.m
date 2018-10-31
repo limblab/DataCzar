@@ -68,7 +68,7 @@ end
 % and I don't want to have multiple connections to the server hanging about.
 %
 % get the list of monkey names from the server
-sqlquery = ['SELECT name, ccm_id FROM general_info.monkeys;']; % get the monkey names 
+sqlquery = ['SELECT name, ccm_id FROM general_info.monkeys ORDER BY name;']; % get the monkey names 
 try
     curs = exec(handles.connSessions,sqlquery); % try to execute the SQL statement, otherwise throw a (mild) fit
     fetch(curs);
@@ -97,7 +97,7 @@ catch ME
     rethrow(ME);
 end
 
-handles.array_type_menu.String = strjoin({'';curs.Data{:}},'\n');
+handles.array_type_menu.String = strjoin({'',curs.Data{:}},'\n');
 
 % ------------------------------------------------------------------------
 % creating the array_options structure for the purpose of entering into the
