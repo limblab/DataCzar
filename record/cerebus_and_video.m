@@ -12,14 +12,14 @@ end
 
 %% Define the desired length of the recording
 recTime = 900; % time in seconds. if -1, just record until you hit a button on the keyboard
-
+cbmex('analogout', 4, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
 
 %% begin recording
 path = ['E:\Data-lab1\17L2-Greyson\CerebusData\',datestr(now,'yyyymmdd')];
-filename = [datestr(now,'yyyymmdd'),'_Greyson_isoWF_'];
+filename = [datestr(now,'yyyymmdd'),'_Greyson_Freereaching_'];
 path_and_filename = strcat(path,filesep,filename);
 % Start video recording
-cbmex('analogout', 1, 'sequence', [15,0,300,21626,60,0], 'repeats', 1);
+cbmex('analogout', 1, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
 % Start .nev file recording
 cbmex('fileconfig',path_and_filename,'',1);
 %fwrite(serial_obj,'STR');
@@ -31,7 +31,7 @@ else
 end
 
 %% stop recording
-cbmex('analogout', 4, 'sequence', [15,0,300,21626,60,0], 'repeats', 1);
+cbmex('analogout', 4, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
 cbmex('fileconfig',path_and_filename,'',0);
 %fwrite(serial_obj,'END');
 cbmex('close');
