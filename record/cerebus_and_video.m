@@ -1,4 +1,6 @@
 %% This script is for the synchronization of Cerebus and the Raspberry Pi camera
+%
+% yellow coax cable == output 1, blue coax cable == output 4
 clc
 try
     cbmex('open');
@@ -12,6 +14,7 @@ end
 
 %% Define the desired length of the recording
 recTime = 900; % time in seconds. if -1, just record until you hit a button on the keyboard
+% This corresponds to the blue coax cable in Kevin's cabling scheme.
 cbmex('analogout', 4, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
 
 %% begin recording
@@ -19,6 +22,7 @@ path = ['E:\Data-lab1\17L2-Greyson\CerebusData\',datestr(now,'yyyymmdd')];
 filename = [datestr(now,'yyyymmdd'),'_Greyson_Freereaching_'];
 path_and_filename = strcat(path,filesep,filename);
 % Start video recording
+% This corresponds to the yellow coax cable
 cbmex('analogout', 1, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
 % Start .nev file recording
 cbmex('fileconfig',path_and_filename,'',1);
@@ -31,7 +35,7 @@ else
 end
 
 %% stop recording
-cbmex('analogout', 4, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
+cbmex('analogout', 4, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1); % blue coax cable
 cbmex('fileconfig',path_and_filename,'',0);
 %fwrite(serial_obj,'END');
 cbmex('close');
