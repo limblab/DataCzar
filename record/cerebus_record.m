@@ -22,7 +22,7 @@ function varargout = cerebus_record(varargin)
 
 % Edit the above text to modify the response to help cerebus_record
 
-% Last Modified by GUIDE v2.5 31-Oct-2018 16:16:26
+% Last Modified by GUIDE v2.5 13-Nov-2018 11:55:13
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -57,10 +57,40 @@ handles.output = hObject;
 
 
 
+% connect to the database
+connSessions = LLSessionsDB_connector;
 
 
+% Fill the monkey_name menu
+sqlQuery = 'SELECT m.name FROM general_info.monkeys as m WHERE (m.retired = ''false'') OR (m.retired IS NULL)';
+try
+    monkeyNames = fetch(connSessions,sqlQuery);
+catch ME % if there are errors getting names from the database
+    warning('Unable to fetch monkey names from database.');
+    error(ME)
+end
+
+if isempty(monkeyNames) % if there are some issues getting names from the database
+    error('Unable to fetch monkey names from database.');
+end
+
+handles.monkeyMenu.String = strjoin(monkeyNames,'\n'); % update the menu values
 
 
+% fill the task name menu
+sqlQuery = 'SELECT t.task_name from general_info.tasks as t';
+try
+    taskNames = fetch(connSessions,sqlQuery);
+catch ME % if there are errors getting names from the database
+    warning('Unable to fetch task names from database.');
+    error(ME)
+end
+
+if isempty(taskNames) % if there are some issues getting names from the database
+    error('Unable to fetch task names from database.');
+end
+
+handles.taskMenu.String = strjoin(taskNames,'\n');
 
 
 
@@ -83,19 +113,19 @@ function varargout = cerebus_record_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
 
 
-% --- Executes on selection change in name_menu.
-function name_menu_Callback(hObject, eventdata, handles)
-% hObject    handle to name_menu (see GCBO)
+% --- Executes on selection change in nameMenu.
+function nameMenu_Callback(hObject, eventdata, handles)
+% hObject    handle to nameMenu (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: contents = cellstr(get(hObject,'String')) returns name_menu contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from name_menu
+% Hints: contents = cellstr(get(hObject,'String')) returns nameMenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from nameMenu
 
 
 % --- Executes during object creation, after setting all properties.
-function name_menu_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to name_menu (see GCBO)
+function nameMenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to nameMenu (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -130,18 +160,18 @@ end
 
 
 
-function weight_edit_Callback(hObject, eventdata, handles)
-% hObject    handle to weight_edit (see GCBO)
+function weightEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to weightEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: get(hObject,'String') returns contents of weight_edit as text
-%        str2double(get(hObject,'String')) returns contents of weight_edit as a double
+% Hints: get(hObject,'String') returns contents of weightEdit as text
+%        str2double(get(hObject,'String')) returns contents of weightEdit as a double
 
 
 % --- Executes during object creation, after setting all properties.
-function weight_edit_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to weight_edit (see GCBO)
+function weightEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to weightEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -153,18 +183,18 @@ end
 
 
 
-function treats_edit_Callback(hObject, eventdata, handles)
-% hObject    handle to treats_edit (see GCBO)
+function treatsEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to treatsEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: get(hObject,'String') returns contents of treats_edit as text
-%        str2double(get(hObject,'String')) returns contents of treats_edit as a double
+% Hints: get(hObject,'String') returns contents of treatsEdit as text
+%        str2double(get(hObject,'String')) returns contents of treatsEdit as a double
 
 
 % --- Executes during object creation, after setting all properties.
-function treats_edit_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to treats_edit (see GCBO)
+function treatsEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to treatsEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -176,18 +206,18 @@ end
 
 
 
-function h2ostart_edit_Callback(hObject, eventdata, handles)
-% hObject    handle to h2ostart_edit (see GCBO)
+function h2ostartEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to h2ostartEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: get(hObject,'String') returns contents of h2ostart_edit as text
-%        str2double(get(hObject,'String')) returns contents of h2ostart_edit as a double
+% Hints: get(hObject,'String') returns contents of h2ostartEdit as text
+%        str2double(get(hObject,'String')) returns contents of h2ostartEdit as a double
 
 
 % --- Executes during object creation, after setting all properties.
-function h2ostart_edit_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to h2ostart_edit (see GCBO)
+function h2ostartEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to h2ostartEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -219,3 +249,102 @@ function experimenter_edit_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
+
+% --- Executes on selection change in taskMenu.
+function taskMenu_Callback(hObject, eventdata, handles)
+% hObject    handle to taskMenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns taskMenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from taskMenu
+
+
+% --- Executes during object creation, after setting all properties.
+function taskMenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to taskMenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function rewardEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to rewardEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of rewardEdit as text
+%        str2double(get(hObject,'String')) returns contents of rewardEdit as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function rewardEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to rewardEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function labEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to labEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of labEdit as text
+%        str2double(get(hObject,'String')) returns contents of labEdit as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function labEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to labEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function ccfEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to ccfEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of ccfEdit as text
+%        str2double(get(hObject,'String')) returns contents of ccfEdit as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function ccfEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to ccfEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in ccfButton.
+function ccfButton_Callback(hObject, eventdata, handles)
+% hObject    handle to ccfButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
