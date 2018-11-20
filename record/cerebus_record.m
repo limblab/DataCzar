@@ -22,7 +22,7 @@ function varargout = cerebus_record(varargin)
 
 % Edit the above text to modify the response to help cerebus_record
 
-% Last Modified by GUIDE v2.5 13-Nov-2018 11:55:13
+% Last Modified by GUIDE v2.5 20-Nov-2018 10:46:05
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -58,13 +58,12 @@ handles.output = hObject;
 
 
 % connect to the database
-connSessions = LLSessionsDB_connector;
-
+handles.connSessions = LLSessionsDB_connector;
 
 % Fill the monkey_name menu
-sqlQuery = 'SELECT m.name FROM general_info.monkeys as m WHERE (m.retired = ''false'') OR (m.retired IS NULL)';
+sqlQuery = 'SELECT m.name, m.ccm_id FROM general_info.monkeys as m WHERE (m.retired = ''false'') OR (m.retired IS NULL)';
 try
-    monkeyNames = fetch(connSessions,sqlQuery);
+    monkeyNames = fetch(handles.connSessions,sqlQuery);
 catch ME % if there are errors getting names from the database
     warning('Unable to fetch monkey names from database.');
     error(ME)
@@ -73,14 +72,14 @@ end
 if isempty(monkeyNames) % if there are some issues getting names from the database
     error('Unable to fetch monkey names from database.');
 end
-
-handles.monkeyMenu.String = strjoin(monkeyNames,'\n'); % update the menu values
+handles.monkeyMenu.String = strjoin(monkeyNames(:,1),'\n'); % update the menu values
+handles.monkeys= monkeyNames;
 
 
 % fill the task name menu
 sqlQuery = 'SELECT t.task_name from general_info.tasks as t';
 try
-    taskNames = fetch(connSessions,sqlQuery);
+    taskNames = fetch(handles.connSessions,sqlQuery);
 catch ME % if there are errors getting names from the database
     warning('Unable to fetch task names from database.');
     error(ME)
@@ -89,10 +88,11 @@ end
 if isempty(taskNames) % if there are some issues getting names from the database
     error('Unable to fetch task names from database.');
 end
-
 handles.taskMenu.String = strjoin(taskNames,'\n');
 
 
+handles.session = struct; % structure for everythign that's going to be in the session table
+handles.day = struct; % structure for everything that's going to be in the day table
 
 
 % Update handles structure
@@ -121,6 +121,22 @@ function nameMenu_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns nameMenu contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from nameMenu
+contents = cellstr(get(hObject,'String'))
+handles.monkeyName = contents{get(hObject,'Value')}; % which monkey did we chose?
+
+% get the arrays available for that monkey
+sqlQuery = ['SELECT a.serial FROM general_info.arrays AS a WHERE a.ccm_id = ''',...
+    handles.monkeys{get(hObject,'Value'),2),''' AND a.removal_date IS NULL'];
+arrays = fetch(connSessions,sqlQuery);
+if isempty(arrays)
+    handles.arrayMenu.Enable = 'off';
+else
+    handles.arrayMenu.Enable = 'on';
+end    
+handles.arrayMenu.String = arrays;
+
+guidata(hObject,handles);
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -146,6 +162,7 @@ function array_menu_Callback(hObject, eventdata, handles)
 %        contents{get(hObject,'Value')} returns selected item from array_menu
 
 
+
 % --- Executes during object creation, after setting all properties.
 function array_menu_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to array_menu (see GCBO)
@@ -167,6 +184,7 @@ function weightEdit_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of weightEdit as text
 %        str2double(get(hObject,'String')) returns contents of weightEdit as a double
+handles.weight 
 
 
 % --- Executes during object creation, after setting all properties.
@@ -346,5 +364,51 @@ end
 % --- Executes on button press in ccfButton.
 function ccfButton_Callback(hObject, eventdata, handles)
 % hObject    handle to ccfButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in timeCheckBox.
+function timeCheckBox_Callback(hObject, eventdata, handles)
+% hObject    handle to timeCheckBox (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of timeCheckBox
+
+
+
+function timeEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to timeEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of timeEdit as text
+%        str2double(get(hObject,'String')) returns contents of timeEdit as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function timeEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to timeEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in recordButton.
+function recordButton_Callback(hObject, eventdata, handles)
+% hObject    handle to recordButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in dayButton.
+function dayButton_Callback(hObject, eventdata, handles)
+% hObject    handle to dayButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
