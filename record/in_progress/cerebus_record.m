@@ -22,7 +22,7 @@ function varargout = cerebus_record(varargin)
 
 % Edit the above text to modify the response to help cerebus_record
 
-% Last Modified by GUIDE v2.5 06-Dec-2018 13:18:44
+% Last Modified by GUIDE v2.5 17-Dec-2018 16:29:29
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -74,6 +74,21 @@ handles.nameMenu.String = strjoin(monkeyNames(:,1),'\n'); % update the menu valu
 handles.monkeys= monkeyNames;
 
 
+% get the arrays available for the initial monkey
+sqlQuery = ['SELECT a.serial FROM general_info.arrays AS a WHERE a.ccm_id = ''',...
+    handles.monkeys{1,2},''' AND a.removal_date IS NULL'];
+arrays = fetch(handles.connSessions,sqlQuery);
+if isempty(arrays)
+    handles.arrayMenu.Enable = 'off';
+    handles.arrayText.Enable = 'off';
+else
+    handles.arrayMenu.Enable = 'on';
+    handles.arrayText.Enable = 'on';
+end    
+handles.arrayMenu.String = arrays;
+
+
+
 % fill the task name menu
 sqlQuery = 'SELECT t.task_name from general_info.tasks as t';
 try
@@ -93,11 +108,11 @@ handles.session = struct('behavior_notes','','behavior_quality','',...
     'other_notes','','task_name','','lab_num',[],'duration',[],...
     'hastriggers',logical([])','haschaoticload',logical([]),'hasbumps',logical([]),...
     'numtrials',[],'numreward',[],'numabort',[],'numfail',[],'numincomplete',[],...
-    'reward_size',[])'; % structure for everything that's going to be in the session table
-handles.day = struct('ccm_id','','weight',[],'h2o_start',[],'h2o_end',[],...
+    'reward_size',[0.1])'; % structure for everything that's going to be in the session table
+handles.day = struct('ccm_id',handles.monkeys{1,2},'weight',[],'h2o_start',[],'h2o_end',[],...
     'treats','','behavior_note','','behavior_quality','','health_notes','',...
     'cleaned',logical([]),'other_notes','','experimenter',''); % structure for everything that's going to be in the day table
-handles.spike_files = struct('array_serial','','filename','','file_hash','',...
+handles.spike_files = struct('array_serial',arrays{1},'filename','','file_hash','',...
     'setting_file','','is_sorted',logical([]),'num_chans',[],'num_units',[],...
     'rec_system','cerebus','connect_type','','spike_quality',''); % everything in the spike table
 handles.emg_files = struct('filename','','file_hash','','rec_system','',...
@@ -135,7 +150,7 @@ function nameMenu_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns nameMenu contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from nameMenu
-contents = cellstr(get(hObject,'String'))
+contents = cellstr(get(hObject,'String'));
 handles.monkeyName = contents{get(hObject,'Value')}; % which monkey did we chose?
 handles.day.ccm_id = handles.monkeys{get(hObject,'Value'),2};
 
@@ -146,13 +161,19 @@ arrays = fetch(handles.connSessions,sqlQuery);
 if isempty(arrays)
     handles.arrayMenu.Enable = 'off';
     handles.arrayText.Enable = 'off';
+    handles.arrayMenu.String = '';
+    handles.spike_files.array_serial = '';
 else
     handles.arrayMenu.Enable = 'on';
     handles.arrayText.Enable = 'on';
+    handles.arrayMenu.String = arrays;
+    handles.spike_files.array_serial = arrays{1}; % update the currently recorded array
 end    
-handles.arrayMenu.String = arrays;
 
-guidata(hObject,handles);
+
+guidata(hObject,handles); % we have to store this before checking mandatory fields
+enableRecording(hObject); % see whether manadatory fields have been filled out
+
 
 
 
@@ -179,7 +200,10 @@ function arrayMenu_Callback(hObject, eventdata, handles)
 %        contents{get(hObject,'Value')} returns selected item from arrayMenu
 contents = cellstr(get(hObject,'String'));
 handles.spike_files.array_serial = contents{get(hObject,'Value')};
-guidata(hObject,handles);
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % see whether all mandatory fields have been filled
+
 
 
 
@@ -205,7 +229,12 @@ function weightEdit_Callback(hObject, eventdata, handles)
 % Hints: get(hObject,'String') returns contents of weightEdit as text
 %        str2double(get(hObject,'String')) returns contents of weightEdit as a double
 handles.day.weight = str2double(get(hObject,'String'));
-guidata(hObject,handles);
+
+keyboard
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % see whether all mandatory fields have been filled
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -254,8 +283,11 @@ function h2ostartEdit_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of h2ostartEdit as text
 %        str2double(get(hObject,'String')) returns contents of h2ostartEdit as a double
-handles.day.h2o_start = get(hObject,'String');
-guidata(hObject,handles);
+handles.day.h2o_start = str2double(get(hObject,'String'));
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % see whether all mandatory fields have been filled out
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -280,7 +312,10 @@ function experimenterEdit_Callback(hObject, eventdata, handles)
 % Hints: get(hObject,'String') returns contents of experimenterEdit as text
 %        str2double(get(hObject,'String')) returns contents of experimenterEdit as a double
 handles.day.experimenter = get(hObject,'String');
-guidata(hObject,handles);
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % see whether all mandatory fields have been completed
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -306,7 +341,10 @@ function taskMenu_Callback(hObject, eventdata, handles)
 %        contents{get(hObject,'Value')} returns selected item from taskMenu
 contents = cellstr(get(hObject,'String'));
 handles.session.task_name = contents{get(hObject,'Value')};
-guidata(hObject,handles);
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % see whether all mandatory fields have been filled
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -330,8 +368,11 @@ function rewardEdit_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of rewardEdit as text
 %        str2double(get(hObject,'Strng')) returns contents of rewardEdit as a double
-handles.day.treats = get(hObject,'String');
-guidata(hObject,handles);
+handles.session.reward_size = get(hObject,'String');
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % make sure everything is properly filled out
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -356,7 +397,10 @@ function labEdit_Callback(hObject, eventdata, handles)
 % Hints: get(hObject,'String') returns contents of labEdit as text
 %        str2double(get(hObject,'String')) returns contents of labEdit as a double
 handles.session.lab_num = str2double(get(hObject,'String'));
-guidata(hObject,handles);
+
+guidata(hObject,handles); % store befoe checking fields
+enableRecording(hObject); % make sure everything is properly filled out
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -382,12 +426,15 @@ function ccfEdit_Callback(hObject, eventdata, handles)
 %        str2double(get(hObject,'String')) returns contents of ccfEdit as a double
 ccfFile = get(hObject,'String');
 if ~exist(ccfFile,'file')
-    handles.ccfEdit.String = '';
+    handles.ccfEdit.String = ' ';
     handles.spike_files.setting_file = '';
 else
     handles.spike_files.setting_file = ccfFile;
 end
-guidata(hObject,handles);
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % make sure everything mandatory is properly filled out
+
 
 % --- Executes during object creation, after setting all properties.
 function ccfEdit_CreateFcn(hObject, eventdata, handles)
@@ -408,11 +455,15 @@ function ccfButton_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 [ccfFile,ccfPath,~] = uigetfile('*.ccf','cerebus configuration file');
-if ~isempty(ccfFile)
+% keyboard
+if ccfFile ~= 0
     handles.ccfEdit.String = [ccfPath,ccfFile];
     handles.spike_files.setting_file = ccfFile;
 end
-guidata(hObject,handles);
+
+guidata(hObject,handles); % store before checking fields
+enableRecording(hObject); % check all mandatory fields
+
 
 
 % --- Executes on button press in timeCheckBox.
@@ -422,12 +473,13 @@ function timeCheckBox_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of timeCheckBox
-if get(oBject,'Value')
+if get(hObject,'Value')
     handles.timeEdit.Enable = 'on';
 else
     handles.timeEdit.Enable = 'off';
 end
 guidata(hObject,handles);
+enableRecording(hObject); % check all mandatory fields
 
 
 function timeEdit_Callback(hObject, eventdata, handles)
@@ -443,6 +495,7 @@ else
     handles.recTime = [];
 end
 guidata(hObject,handles);
+enableRecording(hObject); % check all mandatory fields
 
 
 
@@ -464,6 +517,15 @@ function recordButton_Callback(hObject, eventdata, handles)
 % hObject    handle to recordButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+% this is the big mamma-jamma. Connect to  cbMex with the desired ccf file,
+% then start recording, all according to plans.
+cbmex('open');
+cbmex('ccf','send',handles.ccfEdit.String)
+
+
+
+
 
 
 % --- Executes on button press in dayButton.
@@ -498,8 +560,69 @@ end
 
 
 % --- function to enable the recording button
-function enableRecording
+function enableRecording(hObject)
 % handles   handle for all of the GUI's data
 handles = guidata(gcbo);
 
-keyboard
+% keyboard;
+% are all the mandatory fields filled?
+allMandFields = ~isempty(handles.day.ccm_id) & ~isempty(handles.day.weight)& ...
+    ~isempty(handles.day.h2o_start) & ~isempty(handles.day.experimenter) & ...
+    ~isempty(handles.session.task_name) & ~isempty(handles.session.lab_num) & ...
+    ~isempty(handles.spike_files.array_serial) & ~isempty(handles.spike_files.setting_file);
+
+if handles.timeCheckBox.Value % if the "time" checkbox is ticked, we also need a value
+    allMandFields = allMandFields & ~isempty(handles.timeEdit.String);
+end
+
+if allMandFields
+    handles.recordButton.Enable = 'on';
+else
+    handles.recordButton.Enable = 'off';
+end
+
+
+guidata(gcbo,handles)
+
+
+
+function storageEdit_Callback(hObject, eventdata, handles)
+% hObject    handle to storageEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of storageEdit as text
+%        str2double(get(hObject,'String')) returns contents of storageEdit as a double
+
+
+if exist(hObject.String,'dir')
+    handles.localStorage = hObject.String;
+else
+    handles.localStorage = '';
+    hObject.String = ' ';
+end
+
+guidata(hObject,handles)
+enableRecording(hObject);
+
+
+% --- Executes during object creation, after setting all properties.
+function storageEdit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to storageEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in storageButton.
+function storageButton_Callback(hObject, eventdata, handles)
+% hObject    handle to storageButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+dir
+
