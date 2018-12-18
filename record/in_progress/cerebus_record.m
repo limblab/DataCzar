@@ -125,6 +125,7 @@ handles.kin_files = struct('filename','','file_hash','','sampling_rate',[],...
 
 % incrementing the file count for the day
 handles.dailyIncrement = 1;
+handles.localStorage = '';
 
 % keyboard;
 
@@ -524,6 +525,8 @@ function recordButton_Callback(hObject, eventdata, handles)
 
 % this is the big mamma-jamma. Connect to  cbMex with the desired ccf file,
 % then start recording, all according to plans.
+keyboard;
+
 cbmex('open');
 cbmex('ccf','send',handles.ccfEdit.String)
 
@@ -532,23 +535,40 @@ localStorageTemp = strsplit(handles.localStorage,filesep);
 todayDate = datestr(now,'yyyymmdd');
 if ~strcmp(localStorageTemp{end},todayDate)
     handles.localStorage = [handles.localStorage,filesep,todayDate];
+    handles.storageEdit.String = handles.localStorage;
 end
 
 % create proper file name
 % make the daily incrementation number properly put together
-if dailyIncrement < 10
-    dI = ['00',num2str(dailyIncrement)];
-elseif dailyIncrement < 100
-    dI = ['0',num2str(dailyIncrement)];
+if handles.dailyIncrement < 10
+    dI = ['00',num2str(handles.dailyIncrement)];
+elseif handles.dailyIncrement < 100
+    dI = ['0',num2str(handles.dailyIncrement)];
 else
-    dI = num2str(dailyIncrement);
+    dI = num2str(handles.dailyIncrement);
 end
 
 fileName = [todayDate,'_',handles.monkeyName,'_',handles.session.task_name,...
     '_',dI,'.nev'];
 
+% start the recording
+% if we're set to record for a specific amount of time
+if handles.timeCheckBox.Value
+    handles.timerHandle = timer('ExecutionMode','fixedRate','ObjectVisibility','off',...
+        'Period',1,'TasksToExecute',handles.timeEdit.String,'StopFcn',{@stopRecording,handles},...
+        'TimerFcn',{@countDown,handles});
+end
+cbmex('fileconfig',fileName,'',1); % get the cerebus going
 
-cbmex('fileConfig',1,'
+% alter the GUI so everything is greyed out, change text and callback for
+% button
+handles.recordButton.String = 'Stop Recording';
+handles.recordButton.Callback = '@(hObject,eventdata)cerebus_record(''stopRecording'',hObject,eventdata,guidata(hObject))';
+set(handles.recordingButtonGroup.Children(:),'Enable','off');
+set(handles.daily_buttongroup.Children(:),'Enable','off');
+
+guidata(hObject,handles);
+
 
 
 
@@ -653,9 +673,10 @@ drr = uigetdir('.','Local Storage Location');
 
 if exist(drr,'dir')
     handles.localStorage = drr;
+    handles.storageEdit.String = drr;
 else
     handles.localStorage = '';
-    handles.storageEdit.Sting = ' ';
+    handles.storageEdit.String = ' ';
 end
 
 guidata(hObject,handles)
