@@ -72,6 +72,7 @@ if isempty(monkeyNames) % if there are some issues getting names from the databa
 end
 handles.nameMenu.String = strjoin(monkeyNames(:,1),'\n'); % update the menu values
 handles.monkeys= monkeyNames;
+handles.monkeyName = monkeyNames(:,1);
 
 
 % get the arrays available for the initial monkey
@@ -121,6 +122,9 @@ handles.force_files = struct('filename','','file_hash','','rec_system','cerebus'
     'sampling_rate',[],'force_notes',''); % everything in the force table
 handles.kin_files = struct('filename','','file_hash','','sampling_rate',[],...
     'kin_quality','','kin_notes',''); % everything in the kin table
+
+% incrementing the file count for the day
+handles.dailyIncrement = 1;
 
 % keyboard;
 
@@ -230,7 +234,7 @@ function weightEdit_Callback(hObject, eventdata, handles)
 %        str2double(get(hObject,'String')) returns contents of weightEdit as a double
 handles.day.weight = str2double(get(hObject,'String'));
 
-keyboard
+% keyboard
 
 guidata(hObject,handles); % store before checking fields
 enableRecording(hObject); % see whether all mandatory fields have been filled
@@ -523,8 +527,28 @@ function recordButton_Callback(hObject, eventdata, handles)
 cbmex('open');
 cbmex('ccf','send',handles.ccfEdit.String)
 
+% last folder should be today's date
+localStorageTemp = strsplit(handles.localStorage,filesep); 
+todayDate = datestr(now,'yyyymmdd');
+if ~strcmp(localStorageTemp{end},todayDate)
+    handles.localStorage = [handles.localStorage,filesep,todayDate];
+end
+
+% create proper file name
+% make the daily incrementation number properly put together
+if dailyIncrement < 10
+    dI = ['00',num2str(dailyIncrement)];
+elseif dailyIncrement < 100
+    dI = ['0',num2str(dailyIncrement)];
+else
+    dI = num2str(dailyIncrement);
+end
+
+fileName = [todayDate,'_',handles.monkeyName,'_',handles.session.task_name,...
+    '_',dI,'.nev'];
 
 
+cbmex('fileConfig',1,'
 
 
 
@@ -569,7 +593,8 @@ handles = guidata(gcbo);
 allMandFields = ~isempty(handles.day.ccm_id) & ~isempty(handles.day.weight)& ...
     ~isempty(handles.day.h2o_start) & ~isempty(handles.day.experimenter) & ...
     ~isempty(handles.session.task_name) & ~isempty(handles.session.lab_num) & ...
-    ~isempty(handles.spike_files.array_serial) & ~isempty(handles.spike_files.setting_file);
+    ~isempty(handles.spike_files.array_serial) & ~isempty(handles.spike_files.setting_file) & ...
+    ~isempty(handles.localStorage);
 
 if handles.timeCheckBox.Value % if the "time" checkbox is ticked, we also need a value
     allMandFields = allMandFields & ~isempty(handles.timeEdit.String);
@@ -624,5 +649,15 @@ function storageButton_Callback(hObject, eventdata, handles)
 % hObject    handle to storageButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-dir
+drr = uigetdir('.','Local Storage Location');
+
+if exist(drr,'dir')
+    handles.localStorage = drr;
+else
+    handles.localStorage = '';
+    handles.storageEdit.Sting = ' ';
+end
+
+guidata(hObject,handles)
+enableRecording(hObject)
 
