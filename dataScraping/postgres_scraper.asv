@@ -158,14 +158,12 @@ for ii = 1:length(nevList) % for each nev
         
         
         % find the task name in the filename
-        baseNameSplit = strrep(baseName,'_','|');
-        baseNameSplit = ['''(',baseNameSplit,')'''];
-        sqlQuery = ['SELECT t.task_name from general_info.tasks as t',...
-            'WHERE t.task_name ~* ',baseNameSplit];
+        sqlQuery = ['SELECT t.task_name from general_info.tasks as t where ''',...
+            baseName,''' ILIKE ''%\_''||t.task_name||''\_%'];
         taskName = fetch(connSessions,sqlQuery);
         if isempty(taskName)
-            sqlQuery = ['SELECT t.task_name FROM general_info.tasks AS t WHERE ',...
-                baseNameSplit,' ~* any(t.alt_task_name)'];
+            baseNameSplit = strrep(baseName,'_','|');
+            sqlQuery = ['SELECT t.task_name FROM general_info.tasks as t where ''',baseName,''' LIKE any(t.alt_task_name)'];
             taskName = fetch(connSessions,sqlQuery);
         end 
             

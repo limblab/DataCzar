@@ -59,7 +59,7 @@ handles.output = hObject;
 handles.connSessions = LLSessionsDB_connector;
 
 % Fill the monkey_name menu
-sqlQuery = 'SELECT m.name, m.ccm_id FROM general_info.monkeys as m WHERE m.retired IS NOT true';
+sqlQuery = 'SELECT m.name, m.ccm_id FROM general_info.monkeys as m WHERE m.retired IS NOT true ORDER BY m.name';
 try
     monkeyNames = fetch(handles.connSessions,sqlQuery);
 catch ME % if there are errors getting names from the database
@@ -113,7 +113,7 @@ handles.session = struct('behavior_notes','','behavior_quality','',...
 handles.day = struct('ccm_id',handles.monkeys{1,2},'weight',[],'h2o_start',[],'h2o_end',[],...
     'treats','','behavior_note','','behavior_quality','','health_notes','',...
     'cleaned',logical([]),'other_notes','','experimenter',''); % structure for everything that's going to be in the day table
-handles.spike_files = struct('array_serial',arrays{1},'filename','','file_hash','',...
+handles.spike_files = struct('array_serial','','filename','','file_hash','',...
     'setting_file','','is_sorted',logical([]),'num_chans',[],'num_units',[],...
     'rec_system','cerebus','connect_type','','spike_quality',''); % everything in the spike table
 handles.emg_files = struct('filename','','file_hash','','rec_system','',...
@@ -126,6 +126,7 @@ handles.kin_files = struct('filename','','file_hash','','sampling_rate',[],...
 % incrementing the file count for the day
 handles.dailyIncrement = 1;
 handles.localStorage = '';
+handles.recordStatus = 0;
 
 % keyboard;
 
@@ -527,47 +528,67 @@ function recordButton_Callback(hObject, eventdata, handles)
 % then start recording, all according to plans.
 keyboard;
 
-cbmex('open');
-cbmex('ccf','send',handles.ccfEdit.String)
+if handles.recordStatus == 0
+    cbmex('open');
+    cbmex('ccf','send',handles.ccfEdit.String)
 
-% last folder should be today's date
-localStorageTemp = strsplit(handles.localStorage,filesep); 
-todayDate = datestr(now,'yyyymmdd');
-if ~strcmp(localStorageTemp{end},todayDate)
-    handles.localStorage = [handles.localStorage,filesep,todayDate];
-    handles.storageEdit.String = handles.localStorage;
-end
+    % last folder should be today's date
+    localStorageTemp = strsplit(handles.localStorage,filesep); 
+    todayDate = datestr(now,'yyyymmdd');
+    if ~strcmp(localStorageTemp{end},todayDate)
+        handles.localStorage = [handles.localStorage,filesep,todayDate];
+        handles.storageEdit.String = handles.localStorage;
+    end
 
-% create proper file name
-% make the daily incrementation number properly put together
-if handles.dailyIncrement < 10
-    dI = ['00',num2str(handles.dailyIncrement)];
-elseif handles.dailyIncrement < 100
-    dI = ['0',num2str(handles.dailyIncrement)];
+    % create proper file name
+    % make the daily incrementation number properly put together
+    if handles.dailyIncrement < 10
+        dI = ['00',num2str(handles.dailyIncrement)];
+    elseif handles.dailyIncrement < 100
+        dI = ['0',num2str(handles.dailyIncrement)];
+    else
+        dI = num2str(handles.dailyIncrement);
+    end
+
+    handles.fileName = [todayDate,'_',handles.monkeyName,'_',handles.session.task_name,...
+        '_',dI,'.nev'];
+
+    % start the recording
+    % if we're set to record for a specific amount of time
+    if handles.timeCheckBox.Value
+        handles.timerHandle = timer('ExecutionMode','fixedRate','ObjectVisibility','off',...
+            'Period',1,'TasksToExecute',handles.timeEdit.String,'StopFcn',{@stopRecording,handles},...
+            'TimerFcn',{@countDown,handles});
+    end
+    cbmex('fileconfig',handles.fileName,'',1); % get the cerebus going
+
+    % alter the GUI so everything is greyed out, change text
+    handles.recordButton.String = 'Stop Recording';
+    handles.recordStatus = 1; % because I didn't feel like figuring out how to change the callback properly
+    set(handles.recordingButtonGroup.Children(:),'Enable','off');
+    set(handles.daily_buttongroup.Children(:),'Enable','off');
+    
+    
 else
-    dI = num2str(handles.dailyIncrement);
+    stopRecording(handles)
 end
-
-fileName = [todayDate,'_',handles.monkeyName,'_',handles.session.task_name,...
-    '_',dI,'.nev'];
-
-% start the recording
-% if we're set to record for a specific amount of time
-if handles.timeCheckBox.Value
-    handles.timerHandle = timer('ExecutionMode','fixedRate','ObjectVisibility','off',...
-        'Period',1,'TasksToExecute',handles.timeEdit.String,'StopFcn',{@stopRecording,handles},...
-        'TimerFcn',{@countDown,handles});
-end
-cbmex('fileconfig',fileName,'',1); % get the cerebus going
-
-% alter the GUI so everything is greyed out, change text and callback for
-% button
-handles.recordButton.String = 'Stop Recording';
-handles.recordButton.Callback = '@(hObject,eventdata)cerebus_record(''stopRecording'',hObject,eventdata,guidata(hObject))';
-set(handles.recordingButtonGroup.Children(:),'Enable','off');
-set(handles.daily_buttongroup.Children(:),'Enable','off');
 
 guidata(hObject,handles);
+
+
+% --- Stops the recording ---
+function stopRecording(handles)
+% handles   structure with handle of main figure
+cbmex('fileconfig',handles.fileName,'',0); % stop recording
+
+handles.recordButton.String = 'Start Recording';
+handles.recordingStatus = 0;
+set(handles.recordingButtonGroup.Children(:),'Enable','on'); % only turn on the recording stuff, not the daily recording stuff
+set(handles.dayButton,'Enable','on'); % after recording a session we can end the day if we want
+
+
+
+
 
 
 
@@ -671,7 +692,9 @@ function storageButton_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 drr = uigetdir('.','Local Storage Location');
 
-if exist(drr,'dir')
+% keyboard 
+
+if length(drr>1) & (exist(drr,'dir'))
     handles.localStorage = drr;
     handles.storageEdit.String = drr;
 else
