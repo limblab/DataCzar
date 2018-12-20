@@ -1,4 +1,4 @@
-function exceptionList = postgres_scraper(directory,varargin)
+function knownFailures = postgres_scraper(directory,varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % postgres_scraper
 %
@@ -74,7 +74,7 @@ else
     baseDir = uigetdir('.');
 end
 
-exceptionList = addNevs(connSessions,baseDir,options);
+knownFailures = addNevs(connSessions,baseDir,options);
 
 
 %% close everything
@@ -90,7 +90,7 @@ end
 
 %% directory exploration function
 % looks through provided directory and subdirectories for nevs, nsx, etc
-function exceptionList = addNevs(connSessions, directory,options)
+function knownFailures = addNevs(connSessions, directory,options)
 
 if verLessThan('matlab','R2017b')
     nevList = struct('name',{},'date',{},'bytes',{},'isdir',{},'datenum',{},'folder',{});
@@ -181,7 +181,7 @@ for ii = 1:length(nevList) % for each nev
         % find the task name in the filename
         baseNameSplit = strrep(baseName,'_','|');
         baseNameSplit = ['''(',baseNameSplit,')'''];
-        sqlQuery = ['SELECT t.task_name from general_info.tasks as t',...
+        sqlQuery = ['SELECT t.task_name from general_info.tasks as t ',...
             'WHERE t.task_name ~* ',baseNameSplit];
         taskName = fetch(connSessions,sqlQuery);
         if isempty(taskName)
@@ -422,10 +422,9 @@ end
 
 fprintf('\n\n-----------------------------------------------------------------\n')
 fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
-    added, prevAdded, failures);
+    added, prevAdded, numel(knownFailures));
 fprintf('\n-----------------------------------------------------------------\n\n')
 
-exceptionList = [added,prevAdded,knownFailures];
 
 end
 
@@ -438,7 +437,7 @@ end
 function shaHash = get_256_hash(fullFilePath)
 
     if ispc
-        [~,shaHash] = dos(['CertUtil -hashfile "',fullFilePath,'" sha256']); % get the SHA256 hash from windows
+        [~,shaHash] = dos(['CertUtil -hashfile "',fullFilePath,'" SHA256']); % get the SHA256 hash from windows
         shaHash = regexpi(shaHash,'([a-f_0-9]{2} ){31}[a-f_0-9]{2}','match'); % pull out the actual hash from the reply
         shaHash = strsplit(shaHash{:},' '); % get rid of the spaces
         shaHash = [shaHash{:}];
