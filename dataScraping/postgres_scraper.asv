@@ -1,4 +1,4 @@
-function exceptionList = postgres_scraper(directory,varargin)
+function postgres_scraper(directory,varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % postgres_scraper
 %
@@ -20,8 +20,10 @@ function exceptionList = postgres_scraper(directory,varargin)
 %                           quietly in the background and skips anything t
 %                           that is giving it trouble; instead just stores
 %                           any question in a local log file. This
-%                           overrides fileCheck (set to T) and altTaskName
-%                           (set to T)
+%                           overrides verbose (set to F), fileCheck (set to
+%                           T) and altTaskName (set to T).
+%   verbose             Boolean [default F] - asks for user inputs, and
+%                           gives feedback for each entry
 %   fileCheck           Boolean [default T] - checks to see if files have
 %                           been previously added based on filename rather
 %                           than the sha256 hash. Not as solid, but much
@@ -37,12 +39,15 @@ function exceptionList = postgres_scraper(directory,varargin)
 
 %% varargin parsin
 options.quiet = true;
+options.verbose = false;
 options.fileCheck = true;
 options.altTaskName = true;
 
 % look through the varargin
 for ii = 1:2:nargin-1
     switch lower(varargin{ii})
+        case 'verbose'
+            options.verbose = varargin{ii+1};
         case 'filecheck'
             options.fileCheck = varargin{ii+1};
         case 'alttaskname'
@@ -56,6 +61,7 @@ end
 
 % if quiet is true...
 if options.quiet
+    options.verbose = false;
     options.fileCheck = true;
     options.altTaskName = true;
 end
@@ -277,18 +283,15 @@ for ii = 1:length(nevList) % for each nev
         if numel(arrayEntry) == 1
             implantID = arrayEntry{:};
         else
-            if ~options.quiet
+            if options.verbose
                 arrayYN = input('Would you like to enter the array for this recording? ','s');
                 if any(strcmpi(arrayYN,{'y','yes','yeah','true'}))
                     implantID = input('array SN: ','s');
                 else
-                    warning('Could not resolve which array this is.');
-                    knownProblems(end+1) = struct('FileName',currFullPath,...
-                        'Description','Could not resolve array serial number');
+                    warning('Could not resolve which array this is. You''ll need to resolve this manually later!');
                 end
             else
-                knownProblems(end+1) = struct('FileName',currFullPath,...
-                        'Description','Could not resolve array serial number');  
+                warning('Could not resolve which array this is. You''ll need to resolve this manually later!');    
             end
         end
 
@@ -312,7 +315,7 @@ for ii = 1:length(nevList) % for each nev
         exec(connSessions,sqlQuery);
 %         fetch(curs);
 
-        if ~options.quiet
+        if options.verbose
             fprintf(['\nCreating new entry into days table for ',recDate,'\n']);
         end
     end
@@ -334,7 +337,7 @@ for ii = 1:length(nevList) % for each nev
             exec(connSessions,sqlQuery);
 %             fetch(curs);
 
-            if ~options.quiet
+            if options.verbose
                 fprintf(['\nCreating new entry into sessions table for ',sessions_key,'\n'])
             end
         else
@@ -345,7 +348,7 @@ for ii = 1:length(nevList) % for each nev
             exec(connSessions,sqlQuery);
 %             fetch(curs);
 
-            if ~options.quiet
+            if options.verbose
                 fprintf(['\nCreating new entry into sessions table for ',sessions_key,'\n'])
             end
         end
@@ -420,12 +423,14 @@ for ii = 1:length(nevList) % for each nev
         
 end    
 
-fprintf('\n\n-----------------------------------------------------------------\n')
-fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
-    added, prevAdded, failures);
-fprintf('\n-----------------------------------------------------------------\n\n')
+if options.verbose
+    fprintf('\n\n-----------------------------------------------------------------\n')
+    fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
+        added, prevAdded, failures);
+    fprintf('\n-----------------------------------------------------------------\n\n')
+end
 
-exceptionList = [added,prevAdded,knownFailures];
+exceptionList = [added,prevAdded,failures];
 
 end
 

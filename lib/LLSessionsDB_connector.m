@@ -40,3 +40,7 @@ if ~isempty(connSessions.message)
     clear global LLSessionsDB_userPass
     error(['Could not connect to database. Returned with message: ',connSessions.message]');
 end
+
+
+
+end
