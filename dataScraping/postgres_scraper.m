@@ -76,6 +76,8 @@ end
 
 knownFailures = addNevs(connSessions,baseDir,options);
 
+save([basedir,filesep,'scraped_data_',datestr(today,'yyyy.mm.dd'),'.mat'],'knownFailures');
+
 
 %% close everything
 close(connSessions)
