@@ -1,0 +1,3 @@
+[submodule "lib/NPMK"]
+	path = lib/NPMK
+	url = https://github.com/BlackrockMicrosystems/NPMK.git

@@ -1,4 +1,4 @@
-function postgres_scraper(directory,varargin)
+function knownFailures = postgres_scraper(directory,varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % postgres_scraper
 %
@@ -16,9 +16,13 @@ function postgres_scraper(directory,varargin)
 %
 %   Field               Explanation
 %
-%   verbose             Boolean [default T] - asks for user inputs, and
-%                           gives feedback for each entry
-%   fileCheck           Boolean [default F] - checks to see if files have
+%   quiet               Boolean [default T] - allows the program to run
+%                           quietly in the background and skips anything t
+%                           that is giving it trouble; instead just stores
+%                           any question in a local log file. This
+%                           overrides fileCheck (set to T) and altTaskName
+%                           (set to T)
+%   fileCheck           Boolean [default T] - checks to see if files have
 %                           been previously added based on filename rather
 %                           than the sha256 hash. Not as solid, but much
 %                           faster.
@@ -30,26 +34,30 @@ function postgres_scraper(directory,varargin)
 %
 % 
 %
-%
-% Updated September 2018, KLB
-
 
 %% varargin parsin
-options.verbose = true;
-options.fileCheck = false;
+options.quiet = true;
+options.fileCheck = true;
 options.altTaskName = true;
 
+% look through the varargin
 for ii = 1:2:nargin-1
     switch lower(varargin{ii})
-        case 'verbose'
-            options.verbose = varargin{ii+1};
         case 'filecheck'
             options.fileCheck = varargin{ii+1};
         case 'alttaskname'
             options.altTaskName = varargin{ii+1};
+        case 'quiet'
+            options.quiet = varargin{ii+1};
         otherwise
             warning(['Invalid input: ',varargin(ii)]);
     end
+end
+
+% if quiet is true...
+if options.quiet
+    options.fileCheck = true;
+    options.altTaskName = true;
 end
 
 
@@ -66,7 +74,9 @@ else
     baseDir = uigetdir('.');
 end
 
-exceptionList = addNevs(connSessions,baseDir,options);
+knownFailures = addNevs(connSessions,baseDir,options);
+
+save([basedir,filesep,'scraped_data_',datestr(today,'yyyy.mm.dd'),'.mat'],'knownFailures');
 
 
 %% close everything
@@ -82,7 +92,7 @@ end
 
 %% directory exploration function
 % looks through provided directory and subdirectories for nevs, nsx, etc
-function exceptionList = addNevs(connSessions, directory,options)
+function knownFailures = addNevs(connSessions, directory,options)
 
 if verLessThan('matlab','R2017b')
     nevList = struct('name',{},'date',{},'bytes',{},'isdir',{},'datenum',{},'folder',{});
@@ -97,16 +107,10 @@ fprintf('Found %i potential nev files\n',numel(nevList));
 % monkeys
 sqlQuery = 'SELECT name, ccm_id FROM general_info.monkeys';
 monkeys = fetch(connSessions,sqlQuery);
-% tasks
-sqlQuery = 'SELECT task_name FROM general_info.tasks';
-tasks = fetch(connSessions,sqlQuery);
-if options.altTaskName
-    sqlQuery = 'SELECT alt_task_name FROM general_info.tasks';
-    altTasks = fetch(connSessions,sqlQuery);
-end
 
 % counters to keep track of addition to the DB for summary stats
-added = 0; failures = 0; prevAdded = 0;
+added = 0; prevAdded = 0;
+knownFailures = struct('FileName','','Description','');
 
 for ii = 1:length(nevList) % for each nev    
     fprintf('\n..............................\nProcessing file %i of %i\n',...
@@ -131,8 +135,10 @@ for ii = 1:length(nevList) % for each nev
 
         % I think some PCs don't have certutil....
         if isempty(shaHash)
-            warning(['Could not calculate shaHash; skipping file ',basename]);
-            failures = failures + 1;
+            if ~options.quiet
+                warning(['Could not calculate shaHash; skipping file ',basename]);
+            end
+            knownFailures(end+1) = struct('FileName',currFullPath,'Description','Could not caluculate shaHash');
             continue;
         end
         
@@ -149,14 +155,24 @@ for ii = 1:length(nevList) % for each nev
         % filename
         if options.fileCheck
             shaHash = get_256_hash(currFullPath);
+            if isempty(shaHash)
+                if ~options.quiet
+                    warning(['Could not calculate shaHash; skipping file ',basename]);
+                end
+                knownFailures(end+1) = struct('FileName',currFullPath,'Description','Could not caluculate shaHash');
+                continue;
+            end
         end
         
         
     % find the monkey name in the filename
         monkeyName = cellfun(@(x) any(regexpi(baseName,x)),monkeys(:,1)); % try to find a monkey name in the filename
         if sum(monkeyName) ~= 1 % could we resolve the monkey name?
-            warning(['Could not resolve a valid monkey name in file ',baseName,',. Has this monkey and array been added to the array database?'])
-            failures = failures + 1;
+            if ~options.quiet
+                warning(['Could not resolve a valid monkey name in file ',baseName,',. Has this monkey and array been added to the array database?'])
+            end
+            knownFailures(end+1) = struct('FileName',currFullPath,'Description',...
+                'Could not resolve a valid monkey name');
             continue
         else
             ccmID = monkeys{monkeyName,2}; % get the ccmID number
@@ -165,25 +181,32 @@ for ii = 1:length(nevList) % for each nev
         
         
         % find the task name in the filename
-        baseName_split = strsplit(baseName,'_');
-        taskName = tasks(cellfun(@(x) any(strcmpi(baseName_split,x)), tasks)); % are there any task names we're certain about? -- this is an exact match, otherwise ask (maybe)
-        if options.altTaskName
-            sqlQuery = ['SELECT t.task_name FROM general_info.tasks as t where ''',baseName,''' LIKE any(t.alt_task_name)'];
+        baseNameSplit = strrep(baseName,'_','|');
+        baseNameSplit = ['''(',baseNameSplit,')'''];
+        sqlQuery = ['SELECT t.task_name from general_info.tasks as t ',...
+            'WHERE t.task_name ~* ',baseNameSplit];
+        taskName = fetch(connSessions,sqlQuery);
+        if isempty(taskName)
+            sqlQuery = ['SELECT t.task_name FROM general_info.tasks AS t WHERE ',...
+                baseNameSplit,' ~* any(t.alt_task_name)'];
             taskName = fetch(connSessions,sqlQuery);
         end 
             
         if numel(taskName) ~= 1
-            if options.verbose
+            if ~options.quiet
                 taskYN = input(['Unable to guess task for file: ',baseName,'. Do you know the task?'],'s');
                 if any(strcmpi(taskYN,{'y','yes','yeah','ok','true'}))
                     taskName = input('Taskname: ','s');
                 else
-                    warning('Could not resolve task name. You''ll have to do this manually later!');
-                    taskName = NaN;
+                    warning('Could not resolve task name. Skipping this file for now');
+                    knownFailures(end+1) = struct('FileName',currFullPath,...
+                        'Description','Could not resolve valid task name');
+                    continue
                 end
             else
-                warning('Could not resolve task name. You''ll have to do this manually later!');
-                taskName = NaN;
+                knownFailures(end+1) = struct('FileName',currFullPath,...
+                    'Description','Could not resolve valid task name');
+                continue
             end
         else
             taskName = taskName{:}; % to switch it from a cell to a string
@@ -193,8 +216,11 @@ for ii = 1:length(nevList) % for each nev
         try
             nev = openNEV(currFullPath,'noread','nosave','nomat');
         catch
-            warning(['Could not read ',currFullPath])
-            failures = failures + 1;
+            if ~options.quiet
+                warning(['Could not read ',currFullPath])
+            end
+            knownFailures(end+1) = struct('FileName',currFullPath,...
+                'Description','Could not read file');
             continue
         end
         
@@ -253,15 +279,18 @@ for ii = 1:length(nevList) % for each nev
         if numel(arrayEntry) == 1
             implantID = arrayEntry{:};
         else
-            if options.verbose
+            if ~options.quiet
                 arrayYN = input('Would you like to enter the array for this recording? ','s');
                 if any(strcmpi(arrayYN,{'y','yes','yeah','true'}))
                     implantID = input('array SN: ','s');
                 else
-                    warning('Could not resolve which array this is. You''ll need to resolve this manually later!');
+                    warning('Could not resolve which array this is.');
+                    knownProblems(end+1) = struct('FileName',currFullPath,...
+                        'Description','Could not resolve array serial number');
                 end
             else
-                warning('Could not resolve which array this is. You''ll need to resolve this manually later!');    
+                knownProblems(end+1) = struct('FileName',currFullPath,...
+                        'Description','Could not resolve array serial number');  
             end
         end
 
@@ -285,7 +314,7 @@ for ii = 1:length(nevList) % for each nev
         exec(connSessions,sqlQuery);
 %         fetch(curs);
 
-        if options.verbose
+        if ~options.quiet
             fprintf(['\nCreating new entry into days table for ',recDate,'\n']);
         end
     end
@@ -307,7 +336,7 @@ for ii = 1:length(nevList) % for each nev
             exec(connSessions,sqlQuery);
 %             fetch(curs);
 
-            if options.verbose
+            if ~options.quiet
                 fprintf(['\nCreating new entry into sessions table for ',sessions_key,'\n'])
             end
         else
@@ -318,7 +347,7 @@ for ii = 1:length(nevList) % for each nev
             exec(connSessions,sqlQuery);
 %             fetch(curs);
 
-            if options.verbose
+            if ~options.quiet
                 fprintf(['\nCreating new entry into sessions table for ',sessions_key,'\n'])
             end
         end
@@ -384,21 +413,20 @@ for ii = 1:length(nevList) % for each nev
         
 % --- if the file has already been added to the database ---
     else
-        warning(['File ',nevList(ii).name,' not added. It''s already in the database!'])
+        if ~options.quiet
+            warning(['File ',nevList(ii).name,' not added. It''s already in the database!'])
+        end
         prevAdded = prevAdded + 1;
         continue
     end
         
 end    
 
-if options.verbose
-    fprintf('\n\n-----------------------------------------------------------------\n')
-    fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
-        added, prevAdded, failures);
-    fprintf('\n-----------------------------------------------------------------\n\n')
-end
+fprintf('\n\n-----------------------------------------------------------------\n')
+fprintf('%i files added to database\n %i skipped (previously added)\n %i failures (monkey name unresolved or failed to open .nev)',...
+    added, prevAdded, numel(knownFailures));
+fprintf('\n-----------------------------------------------------------------\n\n')
 
-exceptionList = [added,prevAdded,failures];
 
 end
 
@@ -411,7 +439,7 @@ end
 function shaHash = get_256_hash(fullFilePath)
 
     if ispc
-        [~,shaHash] = dos(['CertUtil -hashfile "',fullFilePath,'" sha256']); % get the SHA256 hash from windows
+        [~,shaHash] = dos(['CertUtil -hashfile "',fullFilePath,'" SHA256']); % get the SHA256 hash from windows
         shaHash = regexpi(shaHash,'([a-f_0-9]{2} ){31}[a-f_0-9]{2}','match'); % pull out the actual hash from the reply
         shaHash = strsplit(shaHash{:},' '); % get rid of the spaces
         shaHash = [shaHash{:}];

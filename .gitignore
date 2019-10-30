@@ -1,0 +1,33 @@
+# vim stuff #
+.*~
+
+
+# Matlab Things #
+*.asv
+*.mat
+
+
+# Images #
+*.jpg
+*.png
+*.bmp
+*.psd
+
+
+# Executables #
+*.exe
+*.dll
+
+
+# Data files #
+*.nev
+*.ns*
+
+
+# Other random files #
+*.pdf
+*.mp3
+*.mp4
+*.ogg
+*.avi
+*.mpg

@@ -31,10 +31,16 @@ if strcmp(connSessions.Message,'Unable to find JDBC driver.')
     else
         doc "PostgreSQL JDBC for Linux";
     end
+    clear global LLSessionsDB_userPass
     error('Unable to find the JDBC driver')
 end
 
 % other errors, just let them know about it
 if ~isempty(connSessions.message)
+    clear global LLSessionsDB_userPass
     error(['Could not connect to database. Returned with message: ',connSessions.message]');
+end
+
+
+
 end

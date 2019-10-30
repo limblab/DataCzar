@@ -1,11 +1,11 @@
 function filenames = gimme_a_file_cmd(varargin)
-% --- gimme_a_file ---
+% --- gimme_a_file_cmd ---
 %
 % Provides a list of filenames that are fit a desired set of inputs.
 % 
 % -----------------------------------------------------------------------
 % Usage:
-%   filenames = gimme_a_file(name/value pair)
+%   filenames = gimme_a_file_cmd(name/value pair)
 %
 % Inputs are given as a name/value pair, where the name will relate to the
 % field you're wanting to search (ie monkey, task etc) and the value will
@@ -13,11 +13,16 @@ function filenames = gimme_a_file_cmd(varargin)
 % corresponding search field. Use as many or as few as you want.
 %
 % -----------------------------------------------------------------------
-% Valid Search Fields:
+%
+% Baseline Settings:
 %*   numResults            Maximum number of files to return. [default:20]
 %*   justFileName          Return just the filenames. Otherwise it returns
 %                              the values for every search term [default:T]
-%*   connSessions          database connection object.
+%*   connSessions          database connection object. (If you previously
+%                              have connected to the database. In most 
+%                              cases you won't use this.)
+%
+% Valid Search Fields:
 %*   monkey_name           Name of the monkey. This must be a string.
 %*   ccm_id                CCM ID. This is a string
 %*   task_name             Name of the task. This must be a string. 
@@ -29,9 +34,9 @@ function filenames = gimme_a_file_cmd(varargin)
 %                             and it'll return everything that matches
 %                             that.
 %*   array_type            Array type (typically going to be Utah)
-%*   rec_date              Date of the recording. A range of dates can be
-%                             input using a pair of dates such as 
-%                             [06/15/2018 06/18/2018]
+%*   rec_date              Date of the recording entered as a string. 
+%                             A range of dates can be input using a cell 
+%                             array of dates such as {'06/15/2018','06/18/2018'}
 %*   behavior_quality      'Good','ok','bad'; this if for an individual
 %                             session
 %*   lab_num               Lab number
@@ -85,9 +90,12 @@ end
 
 %% send the sqlQuery, check for errors
 
-data = fetch(connSessions,sqlQuery);
-disp(data)
-filenames = data(:,1);
+filenames = fetch(connSessions,sqlQuery);
+
+if isempty(filenames)
+    warning('No Matching files were found. Try again with a new query!')
+end
+
 
 end
 
@@ -139,13 +147,14 @@ for ii = 1:2:nargin
         %-
         case 'task_name'
             columns{end+1} = 's.task_name';
-            conds{end+1} = ['s.task_name = ''',varargin{ii+1},''''];
+            conds{end+1} = ['LOWER(s.task_name) = LOWER(''',...
+                varargin{ii+1},''')'];
 
         %-    
         case 'task_description'
-            columns{end+1} = 't.task_description'
+            columns{end+1} = 't.task_description';
             conds{end+1} = ['t.task_description LIKE ',...
-                '''%', varargin{ii+1},'%''']
+                '''%', varargin{ii+1},'%'''];
             if ~any(strcmp(tables,'general_info.tasks as t'))
                 tables{end+1} = 'general_info.tasks as t';
             end
@@ -157,7 +166,8 @@ for ii = 1:2:nargin
         %-    
         case 'array_type'
             columns{end+1} = 'a.array_type';
-            conds{end+1} = ['a.array_type = ''',varargin{ii+1},''''];
+            conds{end+1} = ['LOWER(a.array_type) = LOWER(''',...
+                varargin{ii+1},''')'];
         %-
         case 'rec_date'
             columns{end+1} = 'd.rec_date';
@@ -166,8 +176,8 @@ for ii = 1:2:nargin
             if numel(varargin{ii+1}) == 1
                 conds{end+1} = ['d.rec_date = ''',varargin{ii+1}''''];
             elseif numel(varargin{ii+1}) == 2
-                conds{end+1} = ['(d.rec_date > ''',varargin{ii+1}(1),''') AND ',...
-                    '(d.rec_date < ''',varargin{ii+1}(2),''')'];
+                conds{end+1} = ['(d.rec_date > ''',varargin{ii+1}{1},''') AND ',...
+                    '(d.rec_date < ''',varargin{ii+1}{2},''')'];
             else
                 error('wrong number of entries in the rec_date value');
             end
@@ -184,17 +194,17 @@ for ii = 1:2:nargin
         case 'lab_num'
             columns{end+1} = 's.lab_num';
             % check to see if it's numeric
-            if ~isinteger(varargin{ii+1})
+            if ~isnumeric(varargin{ii+1})
                 error('invalid entry for lab_num')
             else
-                conds{end+1} = ['s.lab_num = ''',varargin{ii+1},''''];
+                conds{end+1} = ['s.lab_num = ',num2str(varargin{ii+1})];
             end
         %-    
         case 'duration'
             columns{end+1} = 's.duration';
             % need to handle this as a range
             if numel(varargin{ii+1}) == 1
-                conds{end+1} = ['s.duration = ''',varargin{ii+1},''''];
+                conds{end+1} = ['s.duration = ''',num2str(varargin{ii+1}),''''];
             else
                 if isnan(varargin{ii+1}(1))
                     conds{end+1} = ['s.duration < ''',num2str(varargin{ii+1}(2)),'''']
@@ -239,9 +249,9 @@ for ii = 1:2:nargin
                 conds{end+1} = ['s.numtrials = ',num2str(varargin{ii+1})];
             else
                 if isnan(varargin{ii+1}(1))
-                    conds{end+1} = ['s.numtrials = ',num2str(varargin{ii+1}(2))];
+                    conds{end+1} = ['s.numtrials < ',num2str(varargin{ii+1}(2))];
                 elseif isnan(varargin{ii+1}(2))
-                    conds{end+1} = ['s.numtrials = ',num2str(varargin{ii+1}(1))];
+                    conds{end+1} = ['s.numtrials > ',num2str(varargin{ii+1}(1))];
                 else
                     conds{end+1} = ['(s.numtrials > ',num2str(varargin{ii+1}(1)),...
                         ') AND (s.numtrials < ',num2str(varargin{ii+1}(2)),')'];
@@ -254,9 +264,9 @@ for ii = 1:2:nargin
                 conds{end+1} = ['s.numreward = ',num2str(varargin{ii+1})];
             else
                 if isnan(varargin{ii+1}(1))
-                    conds{end+1} = ['s.numreward = ',num2str(varargin{ii+1}(2))];
+                    conds{end+1} = ['s.numreward < ',num2str(varargin{ii+1}(2))];
                 elseif isnan(varargin{ii+1}(2))
-                    conds{end+1} = ['s.numreward = ',num2str(varargin{ii+1}(1))];
+                    conds{end+1} = ['s.numreward > ',num2str(varargin{ii+1}(1))];
                 else
                     conds{end+1} = ['(s.numreward > ',num2str(varargin{ii+1}(1)),...
                         ') AND (s.numreward < ',num2str(varargin{ii+1}(2)),')'];
@@ -309,7 +319,7 @@ for ii = 1:2:nargin
             end
         %-
         case 'hasemgs'
-            if ~any(strcmpi(tables,'recordings.emg_files as e'))
+            if ~any(strcmpi(tables,'recordings.emg_files as e')) && varargin{ii+1} % need to actually check that I'm saying I want EMGs!
                 tables{end+1} = 'recordings.emg_files as e';
                 columns{end+1} = 'e.filename as emg_filename';
                 conds{end+1} = ['e.sessions_key = s.sessions_key'];
@@ -335,7 +345,7 @@ for ii = 1:2:nargin
             end
             
         case 'haskin'
-            if ~any(strcmpi(tables,'recordings.kin_files as k'))
+            if ~any(strcmpi(tables,'recordings.kin_files as k')) && varargin{ii+1}
                 tables{end+1} = 'recordings.kin_files as k';
                 columns{end+1} = 'k.filename as kin_filename';
                 conds{end+1} = ['k.sessions_key = s.sessions_key'];
