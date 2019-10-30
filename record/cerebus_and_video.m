@@ -13,13 +13,15 @@ end
 
 
 %% Define the desired length of the recording
-recTime = 900; % time in seconds. if -1, just record until you hit a button on the keyboard
+recTime = 180; % time in seconds. if -1, just record until you hit a button on the keyboard
 % This corresponds to the blue coax cable in Kevin's cabling scheme.
 cbmex('analogout', 4, 'sequence', [15,0,6000,21626,60,0], 'repeats', 1);
 
 %% begin recording
-path = ['E:\Data-lab1\17L2-Greyson\CerebusData\',datestr(now,'yyyymmdd')];
-filename = [datestr(now,'yyyymmdd'),'_Greyson_Freereaching_'];
+% path = ['E:\Data-lab1\17L2-Greyson\CerebusData\',datestr(now,'yyyymmdd')];
+path = 'C:\Users\Miller Lab\Documents\TestData\20181116_NewAntennaLayout';
+% filename = [datestr(now,'yyyymmdd'),'_Greyson_Freereaching_'];
+filename = 'Still_in_cage_';
 path_and_filename = strcat(path,filesep,filename);
 % Start video recording
 % This corresponds to the yellow coax cable
