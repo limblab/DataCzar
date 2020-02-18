@@ -1,4 +1,4 @@
-function runCageRecording(monkey,emg,video)
+function runCageRecording(monkey,emg,video,thirtyk)
 % function runCageRecording
 %
 % runs a recording in the cage room - data through the cerebus, through the
@@ -20,6 +20,9 @@ end
 if ~exist('emg')
     emg = false;
 end
+if ~exist('thirtyk')
+    thirtyk = false;
+end
 
 % make sure that the "Toggle on/off" bits are set to "off"
 if emg
@@ -30,21 +33,16 @@ end
 todaysDate = datestr(today,'yyyymmdd');
 
 if video
-    serial_obj=serial('com2','baudrate',115200,'parity','none','databits',8,'stopbits',1);
-    fopen(serial_obj);
+%     greyson = 1;
+    %serial_obj=serial('com2','baudrate',115200,'parity','none','databits',8,'stopbits',1);
+    %fopen(serial_obj);
 end
 
 while ishandle(A)
     I = I+1;
     try
        t = num2str(clock());
-       if I<10
-           inc = ['00',num2str(I)];
-       elseif I<100
-           inc = ['0',num2str(I)];
-       else
-           inc = num2str(I);
-       end
+       inc = num2str(I,'%03i'); % make sure there are leading zeros
        filename = ['C:\Users\Miller Lab\Documents\CageData\',monkey,'\',todaysDate,'\',todaysDate,'_',monkey,'_Cage_',inc];
        cbmex('fileconfig',filename, '', 0 ) ;
        drawnow;                        % wait till the app opens
@@ -57,7 +55,8 @@ while ishandle(A)
 %        cbmex('analogout', 4, 'sequence', [1,0,3000,21626,1,0], 'repeats', 1);
 %        cbmex('analogout', 1, 'sequence', [150,0,100,21626,1,0], 'repeats', 8);
        if video
-           fwrite(serial_obj,'STR');
+           %fwrite(serial_obj,'STR');
+           cbmex('analogout', 1, 'sequence', [100 32767 900 0], 'repeats', 0);
        end
        %%%%%%%%%%%%%%%%% EMG %%%%%%%%%%%%%%%%%
        if emg
@@ -82,7 +81,8 @@ while ishandle(A)
            urlread(ip_addr,'post',{'__SL_P_UDI','C0'}); % clear bit 0
        end
        if video
-           fwrite(serial_obj,'END');
+           %fwrite(serial_obj,'END');
+           cbmex('analogout',1,'sequence',[500,0,500,0],'repeats',0);
        end
        pause(3);
     catch
@@ -94,7 +94,8 @@ drawnow;
 
 cbmex('close')
 if video
-    fclose(serial_obj);
+    %fclose(serial_obj);
+    greyson = 0;
 end
 
 end
